@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PGR - Consulta de Processos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .search-box {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 15px 20px;
+            font-size: 1.1em;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            transition: border-color 0.3s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .process-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .process-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+
+        .process-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .protocol {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .status {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .status.recebido { background: #e3f2fd; color: #1976d2; }
+        .status.em-analise { background: #fff3e0; color: #f57c00; }
+        .status.em_analise { background: #fff3e0; color: #f57c00; }
+        .status.pendente { background: #ffebee; color: #c62828; }
+        .status.pendente_docs { background: #ffebee; color: #c62828; }
+        .status.completo { background: #e8f5e9; color: #388e3c; }
+        .status.deferido { background: #c8e6c9; color: #2e7d32; }
+        .status.indeferido { background: #ffcdd2; color: #c62828; }
+
+        .process-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .info-item {
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+
+        .info-label {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .documents-section, .deadlines-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .section-title {
+            font-size: 1.2em;
+            color: #667eea;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .document-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 10px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            border-left: 4px solid #ddd;
+        }
+
+        .document-item.provided {
+            border-left-color: #4caf50;
+            background: #e8f5e9;
+        }
+
+        .document-item.missing {
+            border-left-color: #f44336;
+            background: #ffebee;
+        }
+
+        .deadline-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #fff3e0;
+            border-radius: 8px;
+            border-left: 4px solid #ff9800;
+        }
+
+        .deadline-item.overdue {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+
+        .deadline-name {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .deadline-date {
+            color: #666;
+            font-size: 0.95em;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: white;
+            font-size: 1.5em;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .check-icon {
+            color: #4caf50;
+            font-size: 1.2em;
+        }
+
+        .x-icon {
+            color: #f44336;
+            font-size: 1.2em;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .process-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏛️ PGR - Processos Administrativos</h1>
+            <p class="subtitle">Consulta de Processos e Prazos</p>
+        </header>
+
+        <div class="search-box">
+            <input 
+                type="text" 
+                id="searchInput" 
+                class="search-input" 
+                placeholder="🔍 Buscar por protocolo, nome ou matrícula..."
+                onkeyup="filterProcesses()"
+            >
+        </div>
+
+        <div id="errorMessage" class="error" style="display: none;"></div>
+        <div id="loading" class="loading">Carregando processos...</div>
+        <div id="processList"></div>
+    </div>
+
+    <script>
+        // Detectar se está em produção ou local
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:8000'
+            : window.location.origin;
+        
+        let allProcesses = [];
+
+        // Carregar processos ao iniciar
+        async function loadProcesses() {
+            try {
+                const response = await fetch(`${API_URL}/processes`);
+                if (!response.ok) throw new Error('Erro ao carregar processos');
+                
+                const processes = response.json();
+                
+                // Carregar detalhes de cada processo
+                allProcesses = await Promise.all(
+                    processes.map(async (proc) => {
+                        const detailsResponse = await fetch(`${API_URL}/processes/${proc.protocol_number}`);
+                        return detailsResponse.json();
+                    })
+                );
+
+                document.getElementById('loading').style.display = 'none';
+                renderProcesses(allProcesses);
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                showError(`Erro ao conectar com a API: ${error.message}`);
+                console.error(error);
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function renderProcesses(processes) {
+            const container = document.getElementById('processList');
+            
+            if (processes.length === 0) {
+                container.innerHTML = '<div class="error">Nenhum processo encontrado.</div>';
+                return;
+            }
+
+            container.innerHTML = processes.map(proc => `
+                <div class="process-card">
+                    <div class="process-header">
+                        <div class="protocol">${proc.protocol_number}</div>
+                        <div class="status ${(proc.status?.code || proc.status_code || '').toLowerCase().replace('_', '-')}">
+                            ${proc.status?.label || proc.status_label || 'N/A'}
+                        </div>
+                    </div>
+
+                    <div class="process-info">
+                        <div class="info-item">
+                            <div class="info-label">Requerente</div>
+                            <div class="info-value">${proc.applicant_name}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Tipo</div>
+                            <div class="info-value">${proc.type?.name || proc.type_name || 'N/A'}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Data de Criação</div>
+                            <div class="info-value">${formatDate(proc.created_date)}</div>
+                        </div>
+                        ${proc.applicant_registration ? `
+                        <div class="info-item">
+                            <div class="info-label">Matrícula</div>
+                            <div class="info-value">${proc.applicant_registration}</div>
+                        </div>
+                        ` : ''}
+                        ${proc.financial_effective_date ? `
+                        <div class="info-item">
+                            <div class="info-label">Efeito Financeiro</div>
+                            <div class="info-value">${formatDate(proc.financial_effective_date)}</div>
+                        </div>
+                        ` : ''}
+                    </div>
+
+                    ${proc.parecer ? `
+                    <div class="info-item" style="margin-top: 10px;">
+                        <div class="info-label">Parecer</div>
+                        <div class="info-value">${proc.parecer}</div>
+                    </div>
+                    ` : ''}
+
+                    ${proc.documents && proc.documents.length > 0 ? `
+                    <div class="documents-section">
+                        <div class="section-title">📄 Documentos</div>
+                        ${proc.documents.map(doc => `
+                            <div class="document-item ${doc.provided ? 'provided' : 'missing'}">
+                                <div>
+                                    <strong>${doc.name}</strong>
+                                    ${doc.required ? ' <span style="color: #f44336;">*</span>' : ''}
+                                    ${doc.provided_date ? `<br><small>Entregue em: ${formatDate(doc.provided_date)}</small>` : ''}
+                                </div>
+                                <div>
+                                    ${doc.provided ? 
+                                        '<span class="check-icon">✓</span>' : 
+                                        '<span class="x-icon">✗</span>'
+                                    }
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    ` : ''}
+
+                    ${proc.deadlines && proc.deadlines.length > 0 ? `
+                    <div class="deadlines-section">
+                        <div class="section-title">⏰ Prazos</div>
+                        ${proc.deadlines.map(deadline => {
+                            const isOverdue = new Date(deadline.due_date) < new Date() && !deadline.closed;
+                            const daysRemaining = Math.ceil((new Date(deadline.due_date) - new Date()) / (1000 * 60 * 60 * 24));
+                            return `
+                                <div class="deadline-item ${isOverdue ? 'overdue' : ''}">
+                                    <div>
+                                        <div class="deadline-name">${deadline.name}</div>
+                                        <div class="deadline-date">
+                                            Vencimento: ${formatDate(deadline.due_date)}
+                                            ${isOverdue ? 
+                                                `<strong style="color: #f44336;"> (VENCIDO há ${Math.abs(daysRemaining)} dias)</strong>` :
+                                                daysRemaining >= 0 ? ` (Faltam ${daysRemaining} dias)` : ''
+                                            }
+                                        </div>
+                                    </div>
+                                    <div>
+                                        ${deadline.closed ? 
+                                            '<span class="check-icon">✓ Cumprido</span>' : 
+                                            isOverdue ? '<span class="x-icon">⚠️</span>' : '⏳'
+                                        }
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        function filterProcesses() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            const filtered = allProcesses.filter(proc => 
+                proc.protocol_number.toLowerCase().includes(searchTerm) ||
+                proc.applicant_name.toLowerCase().includes(searchTerm) ||
+                (proc.applicant_registration && proc.applicant_registration.includes(searchTerm))
+            );
+
+            renderProcesses(filtered);
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr + 'T00:00:00');
+            return date.toLocaleDateString('pt-BR');
+        }
+
+        // Carregar processos ao iniciar a página
+        loadProcesses();
+
+        // Recarregar a cada 30 segundos
+        setInterval(loadProcesses, 30000);
+    </script>
+</body>
+</html>
