@@ -494,6 +494,7 @@
                     applicant: detectColumn(row, ['Requerente', 'Nome', 'Servidor', 'Applicant']),
                     registration: detectColumn(row, ['Matrícula', 'Matricula', 'Registration']),
                     date: detectColumn(row, ['Data', 'Data Criação', 'Date']),
+                    statusExcel: detectColumn(row, ['Status', 'Estado', 'Situação']),
                     status: 'valid',
                     errors: []
                 };
@@ -584,12 +585,31 @@
 
             for (const row of validData) {
                 try {
+                    // Mapear status do Excel para código da API
+                    let statusCode = 'RECEBIDO'; // default
+                    if (row.statusExcel) {
+                        const statusStr = String(row.statusExcel).toUpperCase().trim();
+                        const statusMap = {
+                            'RECEBIDO': 'RECEBIDO',
+                            'EM ANALISE': 'EM_ANALISE',
+                            'EM ANÁLISE': 'EM_ANALISE',
+                            'EM_ANALISE': 'EM_ANALISE',
+                            'PENDENTE': 'PENDENTE_DOCS',
+                            'PENDENTE_DOCS': 'PENDENTE_DOCS',
+                            'COMPLETO': 'COMPLETO',
+                            'DEFERIDO': 'DEFERIDO',
+                            'INDEFERIDO': 'INDEFERIDO',
+                            'CANCELADO': 'CANCELADO'
+                        };
+                        statusCode = statusMap[statusStr] || 'RECEBIDO';
+                    }
+                    
                     const payload = {
                         protocol_number: row.protocol,
                         type_code: row.type.toUpperCase(),
                         applicant_name: row.applicant,
                         applicant_registration: row.registration || null,
-                        status_code: 'RECEBIDO'
+                        status_code: statusCode
                     };
 
                     const response = await fetch(`${API_URL}/processes`, {
