@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload de Processos - Sistema PGR</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 24px;
+        }
+
+        .btn-voltar {
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+            transition: background 0.3s;
+        }
+
+        .btn-voltar:hover {
+            background: #5568d3;
+        }
+
+        .upload-area {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .upload-box {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 60px 40px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9ff;
+        }
+
+        .upload-box:hover {
+            background: #f0f2ff;
+            border-color: #5568d3;
+        }
+
+        .upload-box.dragover {
+            background: #e8ebff;
+            border-color: #5568d3;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 64px;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .upload-text {
+            font-size: 18px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .upload-hint {
+            font-size: 14px;
+            color: #999;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background 0.3s;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .preview-area {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            display: none;
+        }
+
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .preview-header h2 {
+            color: #333;
+            font-size: 20px;
+        }
+
+        .preview-stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #f8f9ff;
+            padding: 15px 25px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 28px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        .preview-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+
+        .preview-table th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .preview-table td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .preview-table tr:hover {
+            background: #f8f9ff;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .result-area {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .result-success {
+            border-left: 5px solid #28a745;
+        }
+
+        .result-error {
+            border-left: 5px solid #dc3545;
+        }
+
+        .result-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .result-title {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .result-message {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .instructions {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .instructions h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .instructions ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .instructions li {
+            padding: 8px 0;
+            color: #666;
+        }
+
+        .instructions li:before {
+            content: "✓ ";
+            color: #28a745;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .download-template {
+            background: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 10px;
+            transition: background 0.3s;
+        }
+
+        .download-template:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📤 Upload de Processos</h1>
+            <a href="index.html" class="btn-voltar">← Voltar ao Dashboard</a>
+        </div>
+
+        <div class="instructions">
+            <h3>📋 Como usar:</h3>
+            <ul>
+                <li>Prepare sua planilha Excel com os processos</li>
+                <li>Colunas obrigatórias: <strong>Protocolo</strong>, <strong>Tipo</strong>, <strong>Requerente</strong></li>
+                <li>Tipos válidos: <strong>PROM_CAP</strong> ou <strong>PROG_MER</strong></li>
+                <li>O sistema pula processos que já existem (verifica pelo protocolo)</li>
+                <li>Checklist e prazos são criados automaticamente</li>
+            </ul>
+            <a href="#" class="download-template" id="btnDownloadTemplate">⬇️ Baixar Planilha Modelo</a>
+        </div>
+
+        <div class="upload-area">
+            <div class="upload-box" id="uploadBox">
+                <div class="upload-icon">📄</div>
+                <div class="upload-text">Arraste o arquivo Excel aqui</div>
+                <div class="upload-hint">ou clique para selecionar</div>
+                <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls">
+            </div>
+            <div id="fileName" style="margin-top: 15px; color: #666;"></div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Processando planilha...</p>
+        </div>
+
+        <div class="preview-area" id="previewArea">
+            <div class="preview-header">
+                <h2>📊 Prévia dos Dados</h2>
+                <button class="btn-primary" id="btnImport">✅ Importar Processos</button>
+            </div>
+            
+            <div class="preview-stats">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalRows">0</div>
+                    <div class="stat-label">Total de Linhas</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="validRows">0</div>
+                    <div class="stat-label">Processos Válidos</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="errorRows">0</div>
+                    <div class="stat-label">Erros</div>
+                </div>
+            </div>
+
+            <div style="overflow-x: auto;">
+                <table class="preview-table" id="previewTable">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Protocolo</th>
+                            <th>Tipo</th>
+                            <th>Requerente</th>
+                            <th>Matrícula</th>
+                            <th>Data</th>
+                        </tr>
+                    </thead>
+                    <tbody id="previewBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="result-area" id="resultArea">
+            <div class="result-icon" id="resultIcon"></div>
+            <div class="result-title" id="resultTitle"></div>
+            <div class="result-message" id="resultMessage"></div>
+            <button class="btn-primary" onclick="location.reload()">📤 Enviar Outro Arquivo</button>
+            <button class="btn-primary" onclick="window.location.href='index.html'">📊 Ver Dashboard</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+        // Detectar ambiente
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:8000'
+            : window.location.origin;
+
+        const uploadBox = document.getElementById('uploadBox');
+        const fileInput = document.getElementById('fileInput');
+        const fileName = document.getElementById('fileName');
+        const previewArea = document.getElementById('previewArea');
+        const resultArea = document.getElementById('resultArea');
+        const loading = document.getElementById('loading');
+        
+        let currentData = [];
+
+        // Drag & Drop
+        uploadBox.addEventListener('click', () => fileInput.click());
+        
+        uploadBox.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadBox.classList.add('dragover');
+        });
+        
+        uploadBox.addEventListener('dragleave', () => {
+            uploadBox.classList.remove('dragover');
+        });
+        
+        uploadBox.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadBox.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) handleFile(file);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleFile(file);
+        });
+
+        async function handleFile(file) {
+            if (!file.name.match(/\.(xlsx|xls)$/)) {
+                alert('❌ Por favor, selecione um arquivo Excel (.xlsx ou .xls)');
+                return;
+            }
+
+            fileName.textContent = `📁 ${file.name}`;
+            loading.style.display = 'block';
+            previewArea.style.display = 'none';
+            resultArea.style.display = 'none';
+
+            try {
+                const data = await readExcelFile(file);
+                processExcelData(data);
+                loading.style.display = 'none';
+                previewArea.style.display = 'block';
+            } catch (error) {
+                loading.style.display = 'none';
+                alert('❌ Erro ao ler arquivo: ' + error.message);
+            }
+        }
+
+        function readExcelFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                        resolve(jsonData);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function processExcelData(data) {
+            currentData = [];
+            let validCount = 0;
+            let errorCount = 0;
+
+            const previewBody = document.getElementById('previewBody');
+            previewBody.innerHTML = '';
+
+            data.forEach((row, index) => {
+                const processedRow = {
+                    original: row,
+                    protocol: detectColumn(row, ['Protocolo', 'Número', 'Processo', 'Protocol']),
+                    type: detectColumn(row, ['Tipo', 'Type', 'Tipo de Processo']),
+                    applicant: detectColumn(row, ['Requerente', 'Nome', 'Servidor', 'Applicant']),
+                    registration: detectColumn(row, ['Matrícula', 'Matricula', 'Registration']),
+                    date: detectColumn(row, ['Data', 'Data Criação', 'Date']),
+                    status: 'valid',
+                    errors: []
+                };
+
+                // Validações
+                if (!processedRow.protocol) {
+                    processedRow.errors.push('Protocolo obrigatório');
+                    processedRow.status = 'error';
+                }
+                if (!processedRow.type) {
+                    processedRow.errors.push('Tipo obrigatório');
+                    processedRow.status = 'error';
+                } else if (!['PROM_CAP', 'PROG_MER'].includes(processedRow.type.toUpperCase())) {
+                    processedRow.errors.push('Tipo inválido');
+                    processedRow.status = 'error';
+                }
+                if (!processedRow.applicant) {
+                    processedRow.errors.push('Requerente obrigatório');
+                    processedRow.status = 'error';
+                }
+
+                if (processedRow.status === 'valid') {
+                    validCount++;
+                } else {
+                    errorCount++;
+                }
+
+                currentData.push(processedRow);
+
+                // Adicionar linha na prévia (máximo 20 linhas)
+                if (index < 20) {
+                    const tr = document.createElement('tr');
+                    const statusBadge = processedRow.status === 'valid' 
+                        ? '<span class="badge badge-success">✓ Válido</span>'
+                        : `<span class="badge badge-error">✗ ${processedRow.errors.join(', ')}</span>`;
+                    
+                    tr.innerHTML = `
+                        <td>${statusBadge}</td>
+                        <td>${processedRow.protocol || '-'}</td>
+                        <td>${processedRow.type || '-'}</td>
+                        <td>${processedRow.applicant || '-'}</td>
+                        <td>${processedRow.registration || '-'}</td>
+                        <td>${processedRow.date || '-'}</td>
+                    `;
+                    previewBody.appendChild(tr);
+                }
+            });
+
+            // Atualizar estatísticas
+            document.getElementById('totalRows').textContent = data.length;
+            document.getElementById('validRows').textContent = validCount;
+            document.getElementById('errorRows').textContent = errorCount;
+
+            // Habilitar/desabilitar botão de importar
+            document.getElementById('btnImport').disabled = validCount === 0;
+        }
+
+        function detectColumn(row, possibleNames) {
+            for (const name of possibleNames) {
+                for (const key in row) {
+                    if (key.toLowerCase().includes(name.toLowerCase())) {
+                        return row[key];
+                    }
+                }
+            }
+            return null;
+        }
+
+        // Importar processos
+        document.getElementById('btnImport').addEventListener('click', async () => {
+            const validData = currentData.filter(row => row.status === 'valid');
+            
+            if (validData.length === 0) {
+                alert('❌ Nenhum processo válido para importar');
+                return;
+            }
+
+            if (!confirm(`Deseja importar ${validData.length} processo(s)?`)) {
+                return;
+            }
+
+            loading.style.display = 'block';
+            previewArea.style.display = 'none';
+
+            let imported = 0;
+            let skipped = 0;
+            let errors = 0;
+
+            for (const row of validData) {
+                try {
+                    const payload = {
+                        protocol_number: row.protocol,
+                        type_code: row.type.toUpperCase(),
+                        applicant_name: row.applicant,
+                        applicant_registration: row.registration || null,
+                        status_code: 'RECEBIDO'
+                    };
+
+                    const response = await fetch(`${API_URL}/processes`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.ok) {
+                        imported++;
+                    } else if (response.status === 400) {
+                        skipped++; // Protocolo já existe
+                    } else {
+                        errors++;
+                    }
+                } catch (error) {
+                    errors++;
+                }
+            }
+
+            loading.style.display = 'none';
+            showResult(imported, skipped, errors);
+        });
+
+        function showResult(imported, skipped, errors) {
+            resultArea.style.display = 'block';
+            
+            if (errors === 0) {
+                resultArea.className = 'result-area result-success';
+                document.getElementById('resultIcon').textContent = '✅';
+                document.getElementById('resultTitle').textContent = 'Importação Concluída!';
+                document.getElementById('resultMessage').innerHTML = `
+                    ✓ ${imported} processo(s) importado(s)<br>
+                    ${skipped > 0 ? `⏭️ ${skipped} processo(s) pulado(s) (já existem)<br>` : ''}
+                    Os processos já estão disponíveis no dashboard.
+                `;
+            } else {
+                resultArea.className = 'result-area result-error';
+                document.getElementById('resultIcon').textContent = '⚠️';
+                document.getElementById('resultTitle').textContent = 'Importação com Erros';
+                document.getElementById('resultMessage').innerHTML = `
+                    ✓ ${imported} processo(s) importado(s)<br>
+                    ⏭️ ${skipped} processo(s) pulado(s)<br>
+                    ❌ ${errors} erro(s) encontrado(s)
+                `;
+            }
+        }
+
+        // Download template
+        document.getElementById('btnDownloadTemplate').addEventListener('click', (e) => {
+            e.preventDefault();
+            
+            const templateData = [
+                {
+                    'Protocolo': 'PGR-2025-0100',
+                    'Tipo': 'PROM_CAP',
+                    'Requerente': 'João Silva',
+                    'Matrícula': '123456',
+                    'Status': 'RECEBIDO',
+                    'Data': '19/12/2025'
+                },
+                {
+                    'Protocolo': 'PGR-2025-0101',
+                    'Tipo': 'PROG_MER',
+                    'Requerente': 'Maria Santos',
+                    'Matrícula': '789012',
+                    'Status': 'RECEBIDO',
+                    'Data': '19/12/2025'
+                }
+            ];
+
+            const ws = XLSX.utils.json_to_sheet(templateData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Processos');
+            XLSX.writeFile(wb, 'template_processos.xlsx');
+        });
+    </script>
+</body>
+</html>
