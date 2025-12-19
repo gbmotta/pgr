@@ -483,17 +483,24 @@
             let prazosVencidos = 0;
             let prazosProximos = 0;
             const hoje = new Date();
-            const seteDias = new Date();
+            hoje.setHours(0, 0, 0, 0); // Zerar horas para comparação correta
+            const seteDias = new Date(hoje);
             seteDias.setDate(hoje.getDate() + 7);
 
             allProcesses.forEach(process => {
-                if (process.deadlines) {
+                if (process.deadlines && process.deadlines.length > 0) {
                     process.deadlines.forEach(deadline => {
-                        const deadlineDate = new Date(deadline.deadline_date);
-                        if (deadlineDate < hoje && !deadline.completed_date) {
-                            prazosVencidos++;
-                        } else if (deadlineDate >= hoje && deadlineDate <= seteDias && !deadline.completed_date) {
-                            prazosProximos++;
+                        // A API retorna 'due_date' não 'deadline_date'
+                        const deadlineDate = new Date(deadline.due_date);
+                        deadlineDate.setHours(0, 0, 0, 0);
+                        
+                        // Verificar se não está fechado (closed=false)
+                        if (!deadline.closed) {
+                            if (deadlineDate < hoje) {
+                                prazosVencidos++;
+                            } else if (deadlineDate >= hoje && deadlineDate <= seteDias) {
+                                prazosProximos++;
+                            }
                         }
                     });
                 }
@@ -515,11 +522,14 @@
 
         function showOverdueDeadlines() {
             const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+            
             const filtered = allProcesses.filter(process => {
-                if (!process.deadlines) return false;
+                if (!process.deadlines || process.deadlines.length === 0) return false;
                 return process.deadlines.some(deadline => {
-                    const deadlineDate = new Date(deadline.deadline_date);
-                    return deadlineDate < hoje && !deadline.completed_date;
+                    const deadlineDate = new Date(deadline.due_date);
+                    deadlineDate.setHours(0, 0, 0, 0);
+                    return deadlineDate < hoje && !deadline.closed;
                 });
             });
             renderProcesses(filtered);
@@ -527,14 +537,16 @@
 
         function showUpcomingDeadlines() {
             const hoje = new Date();
-            const seteDias = new Date();
+            hoje.setHours(0, 0, 0, 0);
+            const seteDias = new Date(hoje);
             seteDias.setDate(hoje.getDate() + 7);
             
             const filtered = allProcesses.filter(process => {
-                if (!process.deadlines) return false;
+                if (!process.deadlines || process.deadlines.length === 0) return false;
                 return process.deadlines.some(deadline => {
-                    const deadlineDate = new Date(deadline.deadline_date);
-                    return deadlineDate >= hoje && deadlineDate <= seteDias && !deadline.completed_date;
+                    const deadlineDate = new Date(deadline.due_date);
+                    deadlineDate.setHours(0, 0, 0, 0);
+                    return deadlineDate >= hoje && deadlineDate <= seteDias && !deadline.closed;
                 });
             });
             renderProcesses(filtered);
