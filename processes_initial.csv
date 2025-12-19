@@ -1,0 +1,5 @@
+protocol_number,type_code,applicant_name,applicant_registration,created_date,status_code,parecer,financial_effective_date,closed_date,notes
+PGR-2025-0001,PROM_CAP,João Silva Santos,123456,2025-12-01,RECEBIDO,,,,"Aguardando certificado"
+PGR-2025-0002,PROG_MER,Maria Oliveira Costa,789012,2025-11-15,EM_ANALISE,"Análise preliminar favorável",2026-01-01,,"Requer parecer da chefia"
+PGR-2025-0003,PROM_CAP,Carlos Alberto Pereira,345678,2025-10-20,DEFERIDO,"Aprovado conforme critérios técnicos",2025-12-01,2025-12-05,"Efeito financeiro retroativo"
+PGR-2025-0004,PROG_MER,Ana Paula Souza,901234,2025-11-30,PENDENTE_DOCS,"Falta ficha de avaliação",,,"Notificado em 2025-12-10"
