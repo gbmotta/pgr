@@ -21,20 +21,25 @@ def seed_database():
         # ============ 1. Tipos de Processo ============
         print("Criando tipos de processo...")
         
-        prom_cap = models.ProcessType(
-            code="PROM_CAP",
-            name="Promoção por Capacitação Profissional",
-            description="Promoção baseada em títulos e cursos de capacitação"
-        )
+        # Verificar se já existem
+        prom_cap = db.query(models.ProcessType).filter_by(code="PROM_CAP").first()
+        if not prom_cap:
+            prom_cap = models.ProcessType(
+                code="PROM_CAP",
+                name="Promoção por Capacitação Profissional",
+                description="Promoção baseada em títulos e cursos de capacitação"
+            )
+            db.add(prom_cap)
         
-        prog_mer = models.ProcessType(
-            code="PROG_MER",
-            name="Progressão por Mérito Profissional",
-            description="Progressão baseada em avaliação de desempenho"
-        )
+        prog_mer = db.query(models.ProcessType).filter_by(code="PROG_MER").first()
+        if not prog_mer:
+            prog_mer = models.ProcessType(
+                code="PROG_MER",
+                name="Progressão por Mérito Profissional",
+                description="Progressão baseada em avaliação de desempenho"
+            )
+            db.add(prog_mer)
         
-        db.add(prom_cap)
-        db.add(prog_mer)
         db.commit()
         db.refresh(prom_cap)
         db.refresh(prog_mer)
@@ -54,8 +59,10 @@ def seed_database():
         
         status_objs = {}
         for code, label in statuses_data:
-            status = models.Status(code=code, label=label)
-            db.add(status)
+            status = db.query(models.Status).filter_by(code=code).first()
+            if not status:
+                status = models.Status(code=code, label=label)
+                db.add(status)
             status_objs[code] = status
         
         db.commit()
@@ -75,8 +82,10 @@ def seed_database():
         
         doc_objs = {}
         for code, name, desc in docs_data:
-            doc = models.Document(code=code, name=name, description=desc)
-            db.add(doc)
+            doc = db.query(models.Document).filter_by(code=code).first()
+            if not doc:
+                doc = models.Document(code=code, name=name, description=desc)
+                db.add(doc)
             doc_objs[code] = doc
         
         db.commit()
@@ -164,61 +173,66 @@ def seed_database():
         # ============ 6. Processos de Exemplo ============
         print("Criando processos de exemplo...")
         
-        # Processo 1: Promoção por Capacitação (Recebido)
-        proc1 = models.Process(
-            protocol_number="PGR-2025-0001",
-            type_id=prom_cap.id,
-            applicant_name="João Silva Santos",
-            applicant_registration="123456",
-            created_date=date(2025, 12, 1),
-            status_id=status_objs["RECEBIDO"].id,
-            notes="Aguardando certificado"
-        )
-        db.add(proc1)
-        
-        # Processo 2: Progressão por Mérito (Em Análise)
-        proc2 = models.Process(
-            protocol_number="PGR-2025-0002",
-            type_id=prog_mer.id,
-            applicant_name="Maria Oliveira Costa",
-            applicant_registration="789012",
-            created_date=date(2025, 11, 15),
-            status_id=status_objs["EM_ANALISE"].id,
-            parecer="Análise preliminar favorável",
-            financial_effective_date=date(2026, 1, 1),
-            notes="Requer parecer da chefia"
-        )
-        db.add(proc2)
-        
-        # Processo 3: Promoção por Capacitação (Deferido)
-        proc3 = models.Process(
-            protocol_number="PGR-2025-0003",
-            type_id=prom_cap.id,
-            applicant_name="Carlos Alberto Pereira",
-            applicant_registration="345678",
-            created_date=date(2025, 10, 20),
-            status_id=status_objs["DEFERIDO"].id,
-            parecer="Aprovado conforme critérios técnicos",
-            financial_effective_date=date(2025, 12, 1),
-            closed_date=date(2025, 12, 5),
-            notes="Efeito financeiro retroativo"
-        )
-        db.add(proc3)
-        
-        # Processo 4: Progressão por Mérito (Pendente Documentos)
-        proc4 = models.Process(
-            protocol_number="PGR-2025-0004",
-            type_id=prog_mer.id,
-            applicant_name="Ana Paula Souza",
-            applicant_registration="901234",
-            created_date=date(2025, 11, 30),
-            status_id=status_objs["PENDENTE_DOCS"].id,
-            parecer="Falta ficha de avaliação",
-            notes="Notificado em 2025-12-10"
-        )
-        db.add(proc4)
-        
-        db.commit()
+        # Verificar se já existem processos
+        existing_count = db.query(models.Process).count()
+        if existing_count > 0:
+            print(f"  ⏭️  {existing_count} processos já existem. Pulando criação de exemplos.")
+        else:
+            # Processo 1: Promoção por Capacitação (Recebido)
+            proc1 = models.Process(
+                protocol_number="PGR-2025-0001",
+                type_id=prom_cap.id,
+                    applicant_name="João Silva Santos",
+                applicant_registration="123456",
+                created_date=date(2025, 12, 1),
+                status_id=status_objs["RECEBIDO"].id,
+                notes="Aguardando certificado"
+            )
+            db.add(proc1)
+            
+            # Processo 2: Progressão por Mérito (Em Análise)
+            proc2 = models.Process(
+                protocol_number="PGR-2025-0002",
+                type_id=prog_mer.id,
+                applicant_name="Maria Oliveira Costa",
+                applicant_registration="789012",
+                created_date=date(2025, 11, 15),
+                status_id=status_objs["EM_ANALISE"].id,
+                parecer="Análise preliminar favorável",
+                financial_effective_date=date(2026, 1, 1),
+                notes="Requer parecer da chefia"
+            )
+            db.add(proc2)
+            
+            # Processo 3: Promoção por Capacitação (Deferido)
+            proc3 = models.Process(
+                protocol_number="PGR-2025-0003",
+                type_id=prom_cap.id,
+                applicant_name="Carlos Alberto Pereira",
+                applicant_registration="345678",
+                created_date=date(2025, 10, 20),
+                status_id=status_objs["DEFERIDO"].id,
+                parecer="Aprovado conforme critérios técnicos",
+                financial_effective_date=date(2025, 12, 1),
+                closed_date=date(2025, 12, 5),
+                notes="Efeito financeiro retroativo"
+            )
+            db.add(proc3)
+            
+            # Processo 4: Progressão por Mérito (Pendente Documentos)
+            proc4 = models.Process(
+                protocol_number="PGR-2025-0004",
+                type_id=prog_mer.id,
+                applicant_name="Ana Paula Souza",
+                applicant_registration="901234",
+                created_date=date(2025, 11, 30),
+                status_id=status_objs["PENDENTE_DOCS"].id,
+                parecer="Falta ficha de avaliação",
+                notes="Notificado em 2025-12-10"
+            )
+            db.add(proc4)
+            
+            db.commit()
         
         print("✓ Seed concluído com sucesso!")
         print(f"  - 2 tipos de processo")
