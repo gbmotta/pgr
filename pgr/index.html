@@ -269,7 +269,7 @@
                 const response = await fetch(`${API_URL}/processes`);
                 if (!response.ok) throw new Error('Erro ao carregar processos');
                 
-                const processes = response.json();
+                const processes = await response.json();
                 
                 // Carregar detalhes de cada processo
                 allProcesses = await Promise.all(
