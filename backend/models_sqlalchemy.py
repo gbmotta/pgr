@@ -247,7 +247,12 @@ def get_engine(db_path: str = None):
         # Caminho relativo à raiz do projeto: backend/../data/PGR.db
         from pathlib import Path
         project_root = Path(__file__).parent.parent
-        db_file = project_root / "data" / "PGR.db"
+        db_dir = project_root / "data"
+        
+        # Criar diretório se não existir
+        db_dir.mkdir(parents=True, exist_ok=True)
+        
+        db_file = db_dir / "PGR.db"
         db_path = f"sqlite:///{db_file}"
     
     engine = create_engine(
