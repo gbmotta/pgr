@@ -185,7 +185,7 @@ def create_process_deadlines(db: Session, process_id: int, type_id: int, created
     # Buscar prazos legais aplicáveis (específicos do tipo ou gerais)
     legal_deadlines = db.query(models.LegalDeadline).filter(
         (models.LegalDeadline.type_id == type_id) | 
-        (models.LegalDeadline.type_id == None)
+        (models.LegalDeadline.type_id.is_(None))
     ).all()
     
     for legal_dl in legal_deadlines:
@@ -449,6 +449,129 @@ def get_process_details(protocol: str, db: Session = Depends(get_db)):
     }
 
 
+@app.delete("/processes/{protocol}")
+def delete_process(protocol: str, db: Session = Depends(get_db)):
+    """
+    Deleta um processo pelo número do protocolo.
+    
+    Args:
+        protocol: Número do protocolo
+        db: Sessão do banco (injetada)
+    
+    Returns:
+        Mensagem de confirmação
+    
+    Raises:
+        HTTPException 404: Processo não encontrado
+    """
+    process = db.query(models.Process).filter(
+        models.Process.protocol_number == protocol
+    ).first()
+    
+    if not process:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Processo não encontrado: {protocol}"
+        )
+    
+    db.delete(process)
+    db.commit()
+    
+    return {
+        "message": f"Processo {protocol} deletado com sucesso",
+        "protocol": protocol
+    }
+
+
+@app.post("/processes/bulk-delete")
+def bulk_delete_processes(
+    protocols: List[str],
+    db: Session = Depends(get_db)
+):
+    """
+    Deleta múltiplos processos em lote.
+    
+    Args:
+        protocols: Lista de números de protocolo
+        db: Sessão do banco (injetada)
+    
+    Returns:
+        Estatísticas da operação
+    """
+    deleted = 0
+    not_found = []
+    
+    for protocol in protocols:
+        process = db.query(models.Process).filter(
+            models.Process.protocol_number == protocol
+        ).first()
+        
+        if process:
+            db.delete(process)
+            deleted += 1
+        else:
+            not_found.append(protocol)
+    
+    db.commit()
+    
+    return {
+        "message": f"{deleted} processo(s) deletado(s)",
+        "deleted": deleted,
+        "not_found": not_found,
+        "total_requested": len(protocols)
+    }
+
+
+@app.post("/processes/bulk-delete-pattern")
+def bulk_delete_by_pattern(
+    pattern: str = Query(..., description="Padrão do protocolo (ex: PGR-2025-08%)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Deleta processos que correspondem a um padrão SQL LIKE.
+    
+    Args:
+        pattern: Padrão SQL LIKE (ex: 'PGR-2025-08%' deleta todos os 0800-0899)
+        db: Sessão do banco (injetada)
+    
+    Returns:
+        Estatísticas da operação
+    
+    Examples:
+        - PGR-2025-08%: Deleta todos os processos 0800-0899
+        - PGR-2025-%: Deleta todos os processos de 2025
+        - %TEST%: Deleta processos com TEST no protocolo
+    """
+    # Buscar processos que correspondem ao padrão
+    processes = db.query(models.Process).filter(
+        models.Process.protocol_number.like(pattern)
+    ).all()
+    
+    if not processes:
+        return {
+            "message": "Nenhum processo encontrado com esse padrão",
+            "deleted": 0,
+            "pattern": pattern
+        }
+    
+    # Coletar protocolos antes de deletar
+    deleted_protocols = [p.protocol_number for p in processes]
+    
+    # Deletar todos
+    db.query(models.Process).filter(
+        models.Process.protocol_number.like(pattern)
+    ).delete(synchronize_session=False)
+    
+    db.commit()
+    
+    return {
+        "message": f"{len(deleted_protocols)} processo(s) deletado(s)",
+        "deleted": len(deleted_protocols),
+        "pattern": pattern,
+        "protocols": deleted_protocols[:20]  # Mostrar no máximo 20
+    }
+
+
 @app.get("/deadlines/overdue", response_model=List[DeadlineResponseSchema])
 def list_overdue_deadlines(db: Session = Depends(get_db)):
     """
@@ -474,7 +597,7 @@ def list_overdue_deadlines(db: Session = Depends(get_db)):
     ).join(
         models.LegalDeadline
     ).filter(
-        models.ProcessDeadline.closed == False,  # Apenas não fechados
+        models.ProcessDeadline.closed.is_(False),  # Apenas não fechados
         models.ProcessDeadline.due_date < today  # Vencidos
     ).order_by(
         models.ProcessDeadline.due_date.asc()  # Mais antigos primeiro
@@ -523,7 +646,7 @@ def list_upcoming_deadlines(
     ).join(
         models.LegalDeadline
     ).filter(
-        models.ProcessDeadline.closed == False,
+        models.ProcessDeadline.closed.is_(False),
         models.ProcessDeadline.due_date >= today,
         models.ProcessDeadline.due_date <= end_date
     ).order_by(
@@ -569,7 +692,7 @@ def get_statistics(db: Session = Depends(get_db)):
     # Contar prazos vencidos
     today = date.today()
     overdue_count = db.query(models.ProcessDeadline).filter(
-        models.ProcessDeadline.closed == False,
+        models.ProcessDeadline.closed.is_(False),
         models.ProcessDeadline.due_date < today
     ).count()
     

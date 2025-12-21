@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deletar Processos - Sistema PGR</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-width: 500px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .example {
+            font-size: 12px;
+            color: #999;
+            margin-top: 5px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: #34495e;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .btn:hover {
+            background: #2c3e50;
+        }
+
+        .btn-danger {
+            background: #c0392b;
+        }
+
+        .btn-danger:hover {
+            background: #a93226;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .result.success {
+            background: #d5f4e6;
+            color: #0f5132;
+            border: 1px solid #badbcc;
+        }
+
+        .result.error {
+            background: #f8d7da;
+            color: #58151c;
+            border: 1px solid #f1aeb5;
+        }
+
+        .quick-delete {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 2px solid #eee;
+        }
+
+        .quick-delete h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .quick-btn {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗑️ Deletar Processos</h1>
+        
+        <div class="input-group">
+            <label for="pattern">Padrão do Protocolo:</label>
+            <input type="text" id="pattern" placeholder="PGR-2025-08%">
+            <div class="example">
+                Exemplos: <br>
+                • PGR-2025-08% = deleta todos de 0800-0899<br>
+                • PGR-2025-% = deleta todos de 2025
+            </div>
+        </div>
+
+        <button class="btn btn-danger" onclick="deleteByPattern()">
+            Deletar Processos
+        </button>
+
+        <div id="result" class="result"></div>
+
+        <div class="quick-delete">
+            <h3>⚡ Deleções Rápidas:</h3>
+            <button class="btn btn-danger quick-btn" onclick="quickDelete('PGR-2025-08%')">
+                Deletar Processos 0800-0899
+            </button>
+            <button class="btn quick-btn" onclick="window.location.href='/pgr/'">
+                ← Voltar ao Dashboard
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.origin;
+
+        async function deleteByPattern() {
+            const pattern = document.getElementById('pattern').value.trim();
+            if (!pattern) {
+                showResult('Por favor, insira um padrão', 'error');
+                return;
+            }
+
+            if (!confirm(`⚠️ ATENÇÃO! Você vai deletar TODOS os processos que correspondem a: ${pattern}\n\nTem certeza?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/processes/bulk-delete-pattern?pattern=${encodeURIComponent(pattern)}`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showResult(`✅ ${data.message}<br><br>Processos deletados: ${data.deleted}`, 'success');
+                } else {
+                    showResult(`❌ Erro: ${data.detail || 'Erro desconhecido'}`, 'error');
+                }
+            } catch (error) {
+                showResult(`❌ Erro: ${error.message}`, 'error');
+            }
+        }
+
+        async function quickDelete(pattern) {
+            document.getElementById('pattern').value = pattern;
+            await deleteByPattern();
+        }
+
+        function showResult(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = `result ${type}`;
+            resultDiv.innerHTML = message;
+            resultDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

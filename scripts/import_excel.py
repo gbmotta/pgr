@@ -2,14 +2,19 @@
 Importador de Excel para o Sistema PGR
 Permite migrar dados de planilhas existentes para o banco de dados.
 """
-import pandas as pd
-from datetime import datetime, date
-from sqlalchemy.orm import Session
-from models_sqlalchemy import (
-    get_engine, get_session, Process, ProcessType, Status,
-    ProcessDocument, Document, ProcessDeadline
-)
+import sys
+from pathlib import Path
 from typing import Optional
+from datetime import datetime, date
+
+# Adicionar raiz do projeto ao path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+import pandas as pd  # noqa: E402
+from backend.models_sqlalchemy import (  # noqa: E402
+    get_engine, get_session, Process, ProcessType, Status
+)
 
 
 def parse_date(date_str) -> Optional[date]:
@@ -70,7 +75,7 @@ def detect_column_mapping(df: pd.DataFrame) -> dict:
     return mapping
 
 
-def import_from_excel(excel_path: str, sheet_name: str = 0, dry_run: bool = False):
+def import_from_excel(excel_path: str, sheet_name: str | int = 0, dry_run: bool = False):
     """
     Importa processos de uma planilha Excel.
     
@@ -90,7 +95,7 @@ def import_from_excel(excel_path: str, sheet_name: str = 0, dry_run: bool = Fals
     - Parecer: Opcional
     """
     print(f"\n{'='*60}")
-    print(f"📊 IMPORTAÇÃO DE EXCEL - PGR")
+    print("📊 IMPORTAÇÃO DE EXCEL - PGR")
     print(f"{'='*60}\n")
     
     # 1. Ler Excel
@@ -138,6 +143,7 @@ def import_from_excel(excel_path: str, sheet_name: str = 0, dry_run: bool = Fals
     errors = []
     
     for idx, row in df.iterrows():
+        protocol = None  # Inicializar para evitar UnboundLocalError
         try:
             # Obter valores das colunas mapeadas
             protocol = str(row[mapping['protocol']]).strip() if mapping.get('protocol') else None
@@ -167,8 +173,9 @@ def import_from_excel(excel_path: str, sheet_name: str = 0, dry_run: bool = Fals
                 type_code = 'PROM_CAP'
             
             if type_code not in types_map:
+                linha = int(idx) + 2 if isinstance(idx, (int, float)) else 0
                 print(f"❌ {protocol}: Tipo '{type_code}' inválido")
-                errors.append(f"Linha {idx+2}: Tipo '{type_code}' não existe")
+                errors.append(f"Linha {linha}: Tipo '{type_code}' não existe")
                 continue
             
             # Status
@@ -232,7 +239,7 @@ def import_from_excel(excel_path: str, sheet_name: str = 0, dry_run: bool = Fals
                 session.flush()  # Para obter o ID
                 
                 # Criar checklist automático (igual ao endpoint POST)
-                from api_sqlalchemy import create_process_checklist, create_process_deadlines
+                from backend.api_sqlalchemy import create_process_checklist, create_process_deadlines
                 create_process_checklist(session, new_process.id, types_map[type_code].id)
                 if created_date:
                     create_process_deadlines(session, new_process.id, types_map[type_code].id, created_date)
@@ -242,8 +249,9 @@ def import_from_excel(excel_path: str, sheet_name: str = 0, dry_run: bool = Fals
             imported += 1
             
         except Exception as e:
-            errors.append(f"Linha {idx+2} ({protocol if 'protocol' in locals() else '?'}): {str(e)}")
-            print(f"❌ Erro na linha {idx+2}: {e}")
+            linha = int(idx) + 2 if isinstance(idx, (int, float)) else 0
+            errors.append(f"Linha {linha} ({protocol or '?'}): {str(e)}")
+            print(f"❌ Erro na linha {linha}: {e}")
     
     # 5. Salvar ou mostrar resultado
     print(f"\n{'='*60}")
