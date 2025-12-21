@@ -1,21 +1,55 @@
 """
-Modelos SQLAlchemy para o sistema de processos administrativos.
-Define as tabelas do banco de dados usando ORM.
+Modelos SQLAlchemy - Sistema PGR
+
+Este módulo define todas as tabelas e relacionamentos do banco de dados usando
+SQLAlchemy ORM (Object-Relational Mapping).
+
+Estrutura do Banco:
+-------------------
+1. process_types: Tipos de processo (PROM_CAP, PROG_MER)
+2. statuses: Status possíveis dos processos
+3. documents: Documentos do sistema (RG, CPF, certificados, etc)
+4. processes: Processos principais
+5. required_documents: Documentos obrigatórios por tipo
+6. process_documents: Checklist de documentos por processo
+7. legal_deadlines: Prazos legais configurados
+8. process_deadlines: Prazos específicos de cada processo
+
+Relacionamentos:
+---------------
+- Process -> ProcessType (muitos para um)
+- Process -> Status (muitos para um)
+- Process -> ProcessDocument -> Document (muitos para muitos)
+- Process -> ProcessDeadline -> LegalDeadline (muitos para muitos)
+
+Tecnologias:
+- SQLAlchemy 2.0: ORM moderno
+- SQLite: Banco de dados relacional leve
+
+Autor: Sistema PGR
+Versão: 2.0.0
+Data: Dezembro 2025
 """
 from sqlalchemy import (
     Column, Integer, String, Text, Boolean, Date, ForeignKey, Index, create_engine
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from datetime import date
+from pathlib import Path
 
-# Base para todos os modelos
+# Base para todos os modelos ORM
 Base = declarative_base()
 
 
 class ProcessType(Base):
     """
     Tipos de processo disponíveis no sistema.
-    Ex: Promoção por Capacitação, Progressão por Mérito
+    
+    Exemplos:
+    - PROM_CAP: Promoção por Capacitação Profissional
+    - PROG_MER: Progressão por Mérito Profissional
+    
+    Cada tipo tem documentos obrigatórios e prazos específicos.
     """
     __tablename__ = 'process_types'
     
@@ -25,7 +59,7 @@ class ProcessType(Base):
     name = Column(String(200), nullable=False)  # Nome completo do tipo
     description = Column(Text, nullable=True)  # Descrição detalhada
     
-    # Relacionamentos
+    # Relacionamentos ORM
     processes = relationship("Process", back_populates="process_type")
     required_documents = relationship("RequiredDocument", back_populates="process_type")
     legal_deadlines = relationship("LegalDeadline", back_populates="process_type")
@@ -193,21 +227,34 @@ class ProcessDeadline(Base):
 
 # ============ Database Setup ============
 
-def get_engine(db_path: str = "sqlite:///PGR.db"):
+def get_engine(db_path: str = None):
     """
     Cria e retorna a engine do SQLAlchemy.
     
+    O banco de dados fica em data/PGR.db (relativo à raiz do projeto).
+    
     Args:
-        db_path: String de conexão do banco (default: SQLite local)
+        db_path: String de conexão do banco (opcional, usa default se None)
     
     Returns:
-        Engine configurada
+        Engine configurada com SQLite
+    
+    Exemplo:
+        engine = get_engine()
+        # Usa: sqlite:///data/PGR.db
     """
+    if db_path is None:
+        # Caminho relativo à raiz do projeto: backend/../data/PGR.db
+        from pathlib import Path
+        project_root = Path(__file__).parent.parent
+        db_file = project_root / "data" / "PGR.db"
+        db_path = f"sqlite:///{db_file}"
+    
     engine = create_engine(
         db_path,
-        echo=False,  # Set True para debug SQL
-        future=True,
-        connect_args={"check_same_thread": False}  # Necessário para SQLite
+        echo=False,  # Set True para debug SQL (mostra todas as queries)
+        future=True,  # Usar API do SQLAlchemy 2.0
+        connect_args={"check_same_thread": False}  # Necessário para SQLite com threads
     )
     return engine
 
@@ -215,10 +262,16 @@ def get_engine(db_path: str = "sqlite:///PGR.db"):
 def create_tables(engine):
     """
     Cria todas as tabelas no banco de dados.
-    Deve ser chamado uma vez na inicialização.
+    
+    Deve ser chamado uma vez na inicialização da aplicação.
+    É seguro chamar múltiplas vezes (não sobrescreve dados existentes).
     
     Args:
         engine: Engine do SQLAlchemy
+    
+    Exemplo:
+        engine = get_engine()
+        create_tables(engine)
     """
     Base.metadata.create_all(engine)
 

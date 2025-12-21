@@ -1,6 +1,27 @@
 """
-API REST com SQLAlchemy - Sistema de Processos Administrativos
-Endpoints comentados e organizados para fácil manutenção.
+API REST com SQLAlchemy - Sistema de Processos Administrativos PGR
+
+Este módulo implementa a API REST principal do sistema de controle de processos
+administrativos de Promoção por Capacitação Profissional (PROM_CAP) e 
+Progressão por Mérito Profissional (PROG_MER).
+
+Funcionalidades principais:
+- CRUD completo de processos
+- Checklist automático de documentos por tipo de processo
+- Cálculo automático de prazos legais
+- Consulta de processos por protocolo, tipo e status
+- Estatísticas e relatórios
+- API endpoints para frontend
+
+Tecnologias:
+- FastAPI: Framework web assíncrono
+- SQLAlchemy: ORM para banco de dados
+- Pydantic: Validação de dados
+- SQLite: Banco de dados
+
+Autor: Sistema PGR
+Versão: 2.0.0
+Data: Dezembro 2025
 """
 from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.staticfiles import StaticFiles
@@ -8,7 +29,10 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import date, timedelta
-import models_sqlalchemy as models
+from pathlib import Path
+
+# Importar models do mesmo diretório (backend/)
+from . import models_sqlalchemy as models
 
 # ============ Configuração da Aplicação ============
 
@@ -19,14 +43,18 @@ app = FastAPI(
 )
 
 # Inicializar banco de dados na primeira execução
+# O banco ficará em data/PGR.db
 engine = models.get_engine()
 models.create_tables(engine)
 
 # Servir arquivos estáticos (frontend)
-app.mount("/pgr", StaticFiles(directory="pgr", html=True), name="pgr")
+# Caminho relativo à raiz do projeto
+frontend_path = Path(__file__).parent.parent / "frontend"
+app.mount("/pgr", StaticFiles(directory=str(frontend_path), html=True), name="pgr")
 
 
 # ============ Schemas Pydantic (DTOs) ============
+# Schemas definem a estrutura de dados para requisições e respostas
 
 class ProcessCreateSchema(BaseModel):
     """

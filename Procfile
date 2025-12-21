@@ -1,1 +1,1 @@
-web: uvicorn api_sqlalchemy:app --host 0.0.0.0 --port $PORT
+web: uvicorn backend.api_sqlalchemy:app --host 0.0.0.0 --port $PORT
