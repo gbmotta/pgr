@@ -31,8 +31,13 @@ from typing import Optional, List
 from datetime import date, timedelta
 from pathlib import Path
 
-# Importar models do mesmo diretório (backend/)
-from . import models_sqlalchemy as models
+# Importar models - funciona tanto como módulo quanto como pacote
+try:
+    # Quando executado como pacote: python -m backend.api_sqlalchemy
+    from . import models_sqlalchemy as models
+except ImportError:
+    # Quando executado diretamente: uvicorn backend.api_sqlalchemy:app
+    import models_sqlalchemy as models
 
 # ============ Configuração da Aplicação ============
 
