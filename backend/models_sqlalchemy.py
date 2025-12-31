@@ -31,10 +31,10 @@ Versão: 2.0.0
 Data: Dezembro 2025
 """
 from sqlalchemy import (
-    Column, Integer, String, Text, Boolean, Date, ForeignKey, Index, create_engine
+    Column, Integer, String, Text, Boolean, Date, ForeignKey, Index, create_engine, DateTime
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 # Base para todos os modelos ORM
@@ -222,6 +222,57 @@ class ProcessDeadline(Base):
     __table_args__ = (
         Index('idx_deadline_process', 'process_id'),
         Index('idx_deadline_due', 'due_date'),
+    )
+
+
+class User(Base):
+    """
+    Usuários do sistema com autenticação.
+    """
+    __tablename__ = 'users'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(100), unique=True, nullable=False, index=True)
+    email = Column(String(200), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    full_name = Column(String(200), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    is_admin = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    
+    # Relacionamentos futuros (ex: histórico de alterações)
+    # changes = relationship("ProcessChange", back_populates="user")
+
+
+class DocumentAttachment(Base):
+    """
+    Anexos de documentos enviados para processos.
+    """
+    __tablename__ = 'document_attachments'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    process_id = Column(Integer, ForeignKey('processes.id'), nullable=False)
+    document_id = Column(Integer, ForeignKey('documents.id'), nullable=True)  # Opcional: pode ser doc genérico
+    process_document_id = Column(Integer, ForeignKey('process_documents.id'), nullable=True)  # FK para checklist
+    filename = Column(String(255), nullable=False)
+    original_filename = Column(String(255), nullable=False)
+    file_path = Column(String(500), nullable=False)  # Caminho relativo ao diretório de uploads
+    file_size = Column(Integer, nullable=False)  # Tamanho em bytes
+    mime_type = Column(String(100), nullable=True)
+    uploaded_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    uploaded_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    description = Column(Text, nullable=True)
+    
+    # Relacionamentos
+    process = relationship("Process")
+    document = relationship("Document")
+    process_document = relationship("ProcessDocument")
+    uploader = relationship("User")
+    
+    # Índices
+    __table_args__ = (
+        Index('idx_attachment_process', 'process_id'),
+        Index('idx_attachment_document', 'document_id'),
     )
 
 

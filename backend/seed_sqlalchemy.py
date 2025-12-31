@@ -5,6 +5,15 @@ Cria tipos de processo, status, documentos e prazos legais.
 """
 import models_sqlalchemy as models
 from datetime import date
+import sys
+import os
+
+# Adicionar backend ao path para importar auth
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    from . import auth
+except ImportError:
+    import auth
 
 def seed_database():
     """
@@ -234,12 +243,32 @@ def seed_database():
             
             db.commit()
         
+        # ============ 7. Usuário Admin ============
+        print("Criando usuário administrador...")
+        
+        admin_user = db.query(models.User).filter_by(username="admin").first()
+        if not admin_user:
+            admin_user = models.User(
+                username="admin",
+                email="admin@pgr.local",
+                hashed_password=auth.get_password_hash("admin123"),  # Mudar em produção!
+                full_name="Administrador",
+                is_active=True,
+                is_admin=True
+            )
+            db.add(admin_user)
+            db.commit()
+            print("  ✓ Usuário admin criado (username: admin, password: admin123)")
+        else:
+            print("  ⏭️  Usuário admin já existe.")
+        
         print("✓ Seed concluído com sucesso!")
         print(f"  - 2 tipos de processo")
         print(f"  - 7 status")
         print(f"  - 7 documentos")
         print(f"  - 4 prazos legais")
         print(f"  - 4 processos de exemplo")
+        print(f"  - 1 usuário admin")
         
     except Exception as e:
         print(f"✗ Erro durante seed: {str(e)}")
