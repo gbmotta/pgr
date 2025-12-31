@@ -1,13 +1,8 @@
 [phases.setup]
-nixPkgs = ['python311', 'nodejs-18_x']
+nixPkgs = ['nodejs-18_x']
 
 [phases.install]
 cmds = [
-    'python -m pip install --upgrade pip',
-    'python -m pip install -r requirements.txt',
     'cd frontend-react && npm ci && npm run build'
 ]
-
-[start]
-cmd = 'cd backend && python -m uvicorn api_sqlalchemy:app --host 0.0.0.0 --port $PORT'
 
