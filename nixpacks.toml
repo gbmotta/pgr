@@ -1,7 +1,3 @@
-[providers]
-node = "18"
-python = "3.11"
-
 [phases.setup]
 nixPkgs = ['python311', 'nodejs-18_x']
 
