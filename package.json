@@ -1,0 +1,13 @@
+{
+  "name": "pgr-backend",
+  "version": "3.0.0",
+  "description": "Sistema PGR - Backend com build de frontend",
+  "engines": {
+    "node": "18.x",
+    "npm": "9.x"
+  },
+  "scripts": {
+    "build-frontend": "cd frontend-react && npm install && npm run build"
+  }
+}
+
