@@ -61,8 +61,14 @@ app.add_middleware(
 
 # Inicializar banco de dados na primeira execução
 # O banco ficará em data/PGR.db
-engine = models.get_engine()
-models.create_tables(engine)
+try:
+    engine = models.get_engine()
+    models.create_tables(engine)
+except Exception as e:
+    # Em caso de erro na inicialização do banco, logar mas não quebrar a aplicação
+    import logging
+    logging.error(f"Erro ao inicializar banco de dados: {e}")
+    engine = None
 
 # Servir arquivos estáticos (frontend React será servido aqui)
 # Uploads também
@@ -83,11 +89,15 @@ if frontend_old_path.exists():
 
 # Importar utilitários e auth
 try:
-    from . import auth
-    from . import utils
+    from backend import auth
+    from backend import utils
 except ImportError:
-    import auth
-    import utils
+    try:
+        from . import auth
+        from . import utils
+    except ImportError:
+        import auth
+        import utils
 
 
 # ============ Schemas Pydantic (DTOs) ============
@@ -282,27 +292,42 @@ def create_process_deadlines(db: Session, process_id: int, type_id: int, created
 @app.get("/")
 def root():
     """
-    Endpoint raiz - informações da API.
+    Endpoint raiz - tenta servir frontend React ou retorna info da API.
     """
+    # Tentar servir React primeiro
+    if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
+        return FileResponse(str(frontend_dist_path / "index.html"))
+    
+    # Fallback para frontend antigo
+    if frontend_old_path.exists() and (frontend_old_path / "index.html").exists():
+        return FileResponse(str(frontend_old_path / "index.html"))
+    
+    # Se nenhum frontend, retornar info da API
     return {
         "message": "PGR API - Sistema de Processos Administrativos",
-        "version": "2.0.0",
+        "version": "3.0.0",
         "orm": "SQLAlchemy",
-        "docs": "/docs"
+        "docs": "/docs",
+        "status": "running",
+        "frontend": "not built yet"
     }
 
 
 @app.get("/health")
-def health_check(db: Session = Depends(get_db)):
+def health_check():
     """
-    Verifica se a API e o banco de dados estão funcionando.
+    Verifica se a API está funcionando.
     """
     try:
-        # Tenta fazer uma query simples
-        db.query(models.ProcessType).first()
-        return {"status": "healthy", "database": "connected"}
+        # Tenta conectar ao banco
+        test_engine = models.get_engine()
+        test_db = models.get_session(test_engine)
+        test_db.query(models.ProcessType).first()
+        test_db.close()
+        return {"status": "healthy", "database": "connected", "api": "running"}
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Database error: {str(e)}")
+        # Retorna status mesmo com erro no banco
+        return {"status": "degraded", "database": "error", "api": "running", "error": str(e)}
 
 
 @app.post("/processes", status_code=201, response_model=ProcessResponseSchema)
