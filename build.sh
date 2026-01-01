@@ -1,17 +1,8 @@
 #!/bin/bash
 # Script de build para Railway
+# Nixpacks já instala dependências Python automaticamente via requirements.txt
 set -e
 
-echo "🔨 Iniciando build..."
-
-# Instalar dependências Python
-echo "📦 Instalando dependências Python..."
-python3 -m pip install --upgrade pip
-python3 -m pip install -r requirements.txt
-
-echo "✅ Dependências Python instaladas!"
-
-# Build do frontend React
 echo "🔨 Iniciando build do frontend React..."
 
 # Build do frontend React

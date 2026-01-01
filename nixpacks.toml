@@ -2,9 +2,10 @@
 # Precisamos especificar Node.js explicitamente para o build do React
 
 [phases.setup]
-nixPkgs = ['nodejs-18_x', 'python311', 'pip']
+nixPkgs = ['nodejs-18_x']
 
-# Build será feito pelo build.sh que instala dependências e faz build do frontend
+# Nixpacks instala dependências Python automaticamente via requirements.txt
+# Build será feito pelo build.sh que faz build do frontend
 [phases.build]
 cmds = ["./build.sh"]
 
