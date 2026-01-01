@@ -2,11 +2,17 @@
 # Nixpacks instala dependências Python automaticamente
 
 [phases.setup]
-nixPkgs = ['nodejs-18_x']
+nixPkgs = ['nodejs-18_x', 'python311']
 
 # Fase de build - instala deps e builda React
 [phases.build]
 cmds = [
   "cd frontend-react && npm install && npm run build"
+]
+
+# Criar symlink python -> python3 para compatibilidade
+[phases.install]
+cmds = [
+  "ln -sf $(which python3) /usr/local/bin/python || true"
 ]
 
