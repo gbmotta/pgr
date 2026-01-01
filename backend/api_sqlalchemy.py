@@ -61,14 +61,8 @@ app.add_middleware(
 
 # Inicializar banco de dados na primeira execução
 # O banco ficará em data/PGR.db
-try:
-    engine = models.get_engine()
-    models.create_tables(engine)
-except Exception as e:
-    # Em caso de erro na inicialização do banco, logar mas não quebrar a aplicação
-    import logging
-    logging.error(f"Erro ao inicializar banco de dados: {e}")
-    engine = None
+engine = models.get_engine()
+models.create_tables(engine)
 
 # Servir arquivos estáticos (frontend React será servido aqui)
 # Uploads também
