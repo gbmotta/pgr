@@ -3,11 +3,12 @@
   "version": "3.0.0",
   "description": "Sistema PGR - Backend com build de frontend",
   "engines": {
-    "node": "18.x",
-    "npm": "9.x"
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
   },
   "scripts": {
-    "build-frontend": "cd frontend-react && npm install && npm run build"
+    "build": "cd frontend-react && npm install && npm run build",
+    "postinstall": "cd frontend-react && npm install && npm run build"
   }
 }
 
