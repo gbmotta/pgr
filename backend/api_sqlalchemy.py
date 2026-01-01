@@ -59,16 +59,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Inicializar banco de dados na primeira execução
-# O banco ficará em data/PGR.db
-try:
-    engine = models.get_engine()
-    models.create_tables(engine)
-except Exception as e:
-    # Logar erro mas não quebrar a aplicação
-    import logging
-    logging.warning(f"Erro ao inicializar banco (tentará novamente na primeira requisição): {e}")
-    engine = None
+# Inicializar banco de dados - será feito lazy na primeira requisição
+# Isso evita crashes na inicialização
+engine = None
 
 # Servir arquivos estáticos (frontend React será servido aqui)
 # Uploads também
@@ -187,14 +180,30 @@ def get_db():
     Garante que a sessão seja fechada corretamente.
     """
     global engine
-    if engine is None:
-        engine = models.get_engine()
-        models.create_tables(engine)
-    db = models.get_session(engine)
     try:
-        yield db  # Injeta a sessão no endpoint
-    finally:
-        db.close()  # Fecha a sessão após a requisição
+        if engine is None:
+            engine = models.get_engine()
+            models.create_tables(engine)
+        db = models.get_session(engine)
+        try:
+            yield db  # Injeta a sessão no endpoint
+        finally:
+            db.close()  # Fecha a sessão após a requisição
+    except Exception as e:
+        # Se houver erro, criar engine nova e tentar novamente
+        import logging
+        logging.error(f"Erro ao conectar ao banco: {e}")
+        try:
+            engine = models.get_engine()
+            models.create_tables(engine)
+            db = models.get_session(engine)
+            try:
+                yield db
+            finally:
+                db.close()
+        except Exception as e2:
+            logging.error(f"Erro crítico ao conectar ao banco: {e2}")
+            raise HTTPException(status_code=503, detail="Database unavailable")
 
 
 # ============ Funções Auxiliares ============
