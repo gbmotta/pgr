@@ -4,10 +4,19 @@ set -e
 
 echo "🔨 Iniciando build..."
 
-# Instalar dependências Python (garantir que está instalado)
-echo "📦 Instalando dependências Python..."
-python3 -m pip install --upgrade pip --quiet
-python3 -m pip install -r requirements.txt --quiet
+# Verificar qual comando Python está disponível
+if command -v python3 &> /dev/null; then
+    PYTHON_CMD=python3
+elif command -v python &> /dev/null; then
+    PYTHON_CMD=python
+else
+    echo "❌ Python não encontrado!"
+    exit 1
+fi
+
+echo "📦 Instalando dependências Python (usando $PYTHON_CMD)..."
+$PYTHON_CMD -m pip install --upgrade pip --quiet
+$PYTHON_CMD -m pip install -r requirements.txt --quiet
 
 echo "✅ Dependências Python instaladas!"
 
