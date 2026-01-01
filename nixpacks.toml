@@ -1,0 +1,9 @@
+# Nixpacks detecta Python automaticamente pelo requirements.txt
+# Precisamos especificar Node.js explicitamente para o build do React
+
+[phases.setup]
+nixPkgs = ['nodejs-18_x']
+
+# Nixpacks instala dependências Python automaticamente quando encontra requirements.txt
+# Não precisamos especificar na fase install - deixa o build.sh fazer o resto
+
