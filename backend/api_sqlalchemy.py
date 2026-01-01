@@ -61,8 +61,14 @@ app.add_middleware(
 
 # Inicializar banco de dados na primeira execução
 # O banco ficará em data/PGR.db
-engine = models.get_engine()
-models.create_tables(engine)
+try:
+    engine = models.get_engine()
+    models.create_tables(engine)
+except Exception as e:
+    # Logar erro mas não quebrar a aplicação
+    import logging
+    logging.warning(f"Erro ao inicializar banco (tentará novamente na primeira requisição): {e}")
+    engine = None
 
 # Servir arquivos estáticos (frontend React será servido aqui)
 # Uploads também
@@ -180,6 +186,10 @@ def get_db():
     Fornece uma sessão de banco de dados para cada requisição.
     Garante que a sessão seja fechada corretamente.
     """
+    global engine
+    if engine is None:
+        engine = models.get_engine()
+        models.create_tables(engine)
     db = models.get_session(engine)
     try:
         yield db  # Injeta a sessão no endpoint
