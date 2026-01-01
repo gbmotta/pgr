@@ -1234,17 +1234,28 @@ Sistema PGR
 @app.get("/{full_path:path}")
 def serve_frontend(full_path: str):
     """Serve o frontend React para todas as rotas que não são API."""
-    # Não servir se for uma rota de API ou assets
+    # Não servir se for uma rota de API, assets ou docs
     if full_path.startswith("api/") or full_path.startswith("assets/") or full_path.startswith("docs"):
         raise HTTPException(status_code=404)
     
     # Tentar servir React buildado
-    if frontend_dist_path.exists():
+    if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
         index_path = frontend_dist_path / "index.html"
-        if index_path.exists():
-            return FileResponse(str(index_path))
+        return FileResponse(str(index_path))
     
-    raise HTTPException(status_code=404, detail="Frontend não encontrado. Execute 'npm run build' no frontend-react")
+    # Fallback: se frontend antigo existir, servir ele
+    if frontend_old_path.exists() and (frontend_old_path / "index.html").exists():
+        index_path = frontend_old_path / "index.html"
+        return FileResponse(str(index_path))
+    
+    # Se nenhum frontend existe, retornar mensagem útil
+    return {
+        "message": "Sistema PGR API está funcionando!",
+        "status": "ok",
+        "frontend": "não encontrado",
+        "docs": "/docs",
+        "note": "Frontend React precisa ser buildado. Execute 'npm run build' no frontend-react"
+    }
 
 
 # ============ Script de Inicialização ============

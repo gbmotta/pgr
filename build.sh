@@ -18,9 +18,18 @@ if [ -d "frontend-react" ]; then
     # Verificar se o build foi criado
     if [ -d "frontend-dist" ]; then
         echo "✅ frontend-dist/ criado com sucesso!"
-        ls -la frontend-dist/ | head -5
+        echo "Conteúdo:"
+        ls -la frontend-dist/ | head -10
+        if [ -f "frontend-dist/index.html" ]; then
+            echo "✅ index.html encontrado!"
+        else
+            echo "❌ ERRO: index.html não encontrado em frontend-dist/"
+            exit 1
+        fi
     else
         echo "❌ ERRO: frontend-dist/ não foi criado!"
+        echo "Verificando se foi criado em outro local..."
+        find . -name "frontend-dist" -type d 2>/dev/null || echo "Não encontrado"
         exit 1
     fi
 else
