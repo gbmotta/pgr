@@ -545,11 +545,13 @@ def create_process(payload: ProcessCreateSchema, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_process)  # Atualiza com o ID gerado
     
-    # 6. Gerar checklist de documentos
-    create_process_checklist(db, new_process.id, process_type.id)
+    # 6. Gerar checklist de documentos (apenas se tiver tipo)
+    if process_type:
+        create_process_checklist(db, new_process.id, process_type.id)
     
-    # 7. Gerar prazos legais
-    create_process_deadlines(db, new_process.id, process_type.id, created_date)
+    # 7. Gerar prazos legais (apenas se tiver tipo)
+    if process_type and created_date:
+        create_process_deadlines(db, new_process.id, process_type.id, created_date)
     
     # 8. Calcular cor do prazo
     prazo_color = calculate_prazo_color(new_process.prazo_final)
