@@ -52,9 +52,9 @@ if not hasattr(api_sqlalchemy, 'app'):
 
 print("✅ App FastAPI encontrado")
 
-# Porta
+# Porta - Railway fornece via variável de ambiente
 port = int(os.environ.get('PORT', 8000))
-host = os.environ.get('HOST', '0.0.0.0')
+host = '0.0.0.0'  # Railway precisa escutar em 0.0.0.0
 
 print(f"🚀 Iniciando servidor em {host}:{port}...")
 print(f"📂 Diretório de trabalho: {os.getcwd()}")
@@ -62,11 +62,18 @@ print(f"🐍 Python: {sys.executable}")
 
 # Iniciar servidor
 try:
+    print("=" * 50)
+    print(f"🚀 SERVIDOR INICIANDO")
+    print(f"   Host: {host}")
+    print(f"   Port: {port}")
+    print(f"   App: backend.api_sqlalchemy:app")
+    print("=" * 50)
     uvicorn.run(
         "backend.api_sqlalchemy:app",
         host=host,
         port=port,
-        log_level="info"
+        log_level="info",
+        access_log=True
     )
 except Exception as e:
     print(f"❌ Erro ao iniciar servidor: {e}")
