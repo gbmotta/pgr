@@ -1,1 +1,1 @@
-web: python3 start_app.py
+web: python3 -m uvicorn backend.api_sqlalchemy:app --host 0.0.0.0 --port $PORT
