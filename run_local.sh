@@ -35,31 +35,40 @@ else
 fi
 
 # Instalar dependências Node.js se necessário
-echo -e "${YELLOW}📦 Verificando dependências Node.js...${NC}"
-if [ ! -d "frontend-react/node_modules" ]; then
-    echo "Instalando dependências Node.js..."
-    cd frontend-react
-    npm install
-    cd ..
+echo -e "${YELLOW}📦 Verificando Node.js/npm...${NC}"
+if ! command -v npm &> /dev/null; then
+    echo -e "${YELLOW}⚠️  npm não encontrado. O frontend React será pulado.${NC}"
+    echo -e "${YELLOW}   Instale Node.js para ter acesso ao frontend completo.${NC}"
+    FRONTEND_AVAILABLE=false
 else
-    echo -e "${GREEN}✅ Dependências Node.js já instaladas${NC}"
-fi
-
-# Buildar frontend se necessário
-echo -e "${YELLOW}🏗️  Verificando build do frontend...${NC}"
-if [ ! -d "frontend-dist" ] || [ ! -f "frontend-dist/index.html" ]; then
-    echo "Buildando frontend React..."
-    cd frontend-react
-    npm run build
-    cd ..
-    # Copiar para frontend-dist
-    if [ -d "frontend-react/dist" ]; then
-        rm -rf frontend-dist
-        cp -r frontend-react/dist frontend-dist
-        echo -e "${GREEN}✅ Frontend buildado${NC}"
+    echo -e "${GREEN}✅ Node.js/npm encontrado: $(node --version) / $(npm --version)${NC}"
+    FRONTEND_AVAILABLE=true
+    
+    if [ ! -d "frontend-react/node_modules" ]; then
+        echo "Instalando dependências Node.js..."
+        cd frontend-react
+        npm install
+        cd ..
+    else
+        echo -e "${GREEN}✅ Dependências Node.js já instaladas${NC}"
     fi
-else
-    echo -e "${GREEN}✅ Frontend já buildado${NC}"
+    
+    # Buildar frontend se necessário
+    echo -e "${YELLOW}🏗️  Verificando build do frontend...${NC}"
+    if [ ! -d "frontend-dist" ] || [ ! -f "frontend-dist/index.html" ]; then
+        echo "Buildando frontend React..."
+        cd frontend-react
+        npm run build
+        cd ..
+        # Copiar para frontend-dist
+        if [ -d "frontend-react/dist" ]; then
+            rm -rf frontend-dist
+            cp -r frontend-react/dist frontend-dist
+            echo -e "${GREEN}✅ Frontend buildado${NC}"
+        fi
+    else
+        echo -e "${GREEN}✅ Frontend já buildado${NC}"
+    fi
 fi
 
 # Criar diretórios necessários
@@ -100,6 +109,10 @@ echo ""
 echo -e "📍 Acesse em: ${GREEN}http://localhost:8000${NC}"
 echo -e "📚 Documentação API: ${GREEN}http://localhost:8000/docs${NC}"
 echo -e "🔍 Health check: ${GREEN}http://localhost:8000/health${NC}"
+if [ "$FRONTEND_AVAILABLE" = "false" ]; then
+    echo -e "${YELLOW}⚠️  Frontend React não disponível (npm não encontrado)${NC}"
+    echo -e "   A API estará funcionando normalmente em /docs${NC}"
+fi
 echo ""
 echo -e "${YELLOW}👤 Credenciais padrão:${NC}"
 echo -e "   Usuário: ${GREEN}admin${NC}"
