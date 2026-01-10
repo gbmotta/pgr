@@ -49,7 +49,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = None):
+def get_current_user(token: str = Depends(oauth2_scheme)):
     """Obtém usuário atual a partir do token JWT."""
     from . import models_sqlalchemy as models
     
@@ -66,17 +66,23 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = None):
     except JWTError:
         raise credentials_exception
     
-    if db is None:
-        engine = models.get_engine()
-        db = models.get_session(engine)
+    # Criar sessão do banco de dados
+    engine = models.get_engine()
+    db = models.get_session(engine)
     
-    user = db.query(models.User).filter(models.User.username == username).first()
-    if user is None:
-        raise credentials_exception
-    if not user.is_active:
-        raise HTTPException(status_code=400, detail="Usuário inativo")
-    
-    return user
+    try:
+        user = db.query(models.User).filter(models.User.username == username).first()
+        if user is None:
+            db.close()
+            raise credentials_exception
+        if not user.is_active:
+            db.close()
+            raise HTTPException(status_code=400, detail="Usuário inativo")
+        # Não fechar db aqui - será fechado quando user for usado
+        return user
+    except Exception:
+        db.close()
+        raise
 
 
 def get_current_active_user(current_user = Depends(get_current_user)):

@@ -880,7 +880,14 @@ def login(credentials: LoginSchema, db: Session = Depends(get_db)):
 def get_current_user_info(current_user = Depends(auth.get_current_active_user)):
     """Retorna informações do usuário logado."""
     # Converter objeto SQLAlchemy para Pydantic usando model_validate (Pydantic v2)
-    return UserResponseSchema.model_validate(current_user)
+    try:
+        return UserResponseSchema.model_validate(current_user)
+    finally:
+        # Fechar sessão do banco se necessário
+        if hasattr(current_user, '_sa_instance_state'):
+            session = current_user._sa_instance_state.session
+            if session:
+                session.close()
 
 
 # ============ Endpoints de Upload ============
