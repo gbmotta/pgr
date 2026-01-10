@@ -428,6 +428,10 @@ def root():
     }
 
 
+# Catch-all route para React Router (deve ser o último, após todos os outros endpoints)
+# Este endpoint será adicionado no final do arquivo, após todas as rotas da API
+
+
 @app.get("/health")
 def health_check():
     """
