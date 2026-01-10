@@ -100,18 +100,35 @@ class Document(Base):
 class Process(Base):
     """
     Processo administrativo principal.
-    Armazena todos os dados do processo de promoção/progressão.
+    Modelo adaptado conforme tabela de controle de processos 2026.
     """
     __tablename__ = 'processes'
     
     # Colunas principais
     id = Column(Integer, primary_key=True, autoincrement=True)
-    protocol_number = Column(String(50), unique=True, nullable=False, index=True)  # Número de protocolo único
-    type_id = Column(Integer, ForeignKey('process_types.id'), nullable=False)  # FK para tipo de processo
-    applicant_name = Column(String(200), nullable=False)  # Nome do requerente
+    
+    # IDs de identificação (conforme tabela)
+    processo_adm_1doc = Column(String(100), nullable=True, index=True)  # PROCESSO ADM 1DOC
+    processo_judicial = Column(String(100), nullable=True, index=True)  # PROCESSO JUDICIAL
+    
+    # Informações principais
+    partes = Column(Text, nullable=True)  # PARTES (menu expandível)
+    tema_observacoes = Column(Text, nullable=True)  # TEMA – OBSERVAÇÕES (menu expandível)
+    
+    # Datas e prazos
+    data_recebimento_mes_ano = Column(String(20), nullable=True)  # DATA RECEBIMENTO (MÊS/ANO) - ex: "DEZ/2025"
+    prazo_info_estag = Column(String(10), nullable=True)  # PRAZO INFO – ESTAG (DIA/MÊS) - ex: "13/02"
+    prazo_final = Column(String(10), nullable=True, index=True)  # PRAZO FINAL (DD/MM) - ex: "16/02"
+    tipo_ato = Column(String(100), nullable=True)  # TIPO DE ATO (PETIÇÃO OU PARECER OU SEM ATO)
+    data_realizacao_ato = Column(String(10), nullable=True)  # DATA DE REALIZAÇÃO DO ATO (DD/MM/AAAA)
+    
+    # Campos legados (mantidos para compatibilidade)
+    protocol_number = Column(String(50), unique=True, nullable=True, index=True)  # Número de protocolo único (gerado automaticamente)
+    type_id = Column(Integer, ForeignKey('process_types.id'), nullable=True)  # FK para tipo de processo
+    applicant_name = Column(String(200), nullable=True)  # Nome do requerente
     applicant_registration = Column(String(50), nullable=True)  # Matrícula do servidor
-    created_date = Column(Date, nullable=False, index=True)  # Data de criação/protocolo
-    status_id = Column(Integer, ForeignKey('statuses.id'), nullable=False)  # FK para status atual
+    created_date = Column(Date, nullable=True, index=True)  # Data de criação/protocolo
+    status_id = Column(Integer, ForeignKey('statuses.id'), nullable=True)  # FK para status atual
     
     # Campos de acompanhamento
     parecer = Column(Text, nullable=True)  # Parecer técnico/jurídico
@@ -128,6 +145,9 @@ class Process(Base):
     # Índices compostos
     __table_args__ = (
         Index('idx_process_type_status', 'type_id', 'status_id'),
+        Index('idx_processo_adm', 'processo_adm_1doc'),
+        Index('idx_processo_judicial', 'processo_judicial'),
+        Index('idx_prazo_final', 'prazo_final'),
     )
 
 

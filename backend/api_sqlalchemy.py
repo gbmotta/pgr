@@ -133,28 +133,57 @@ class TokenSchema(BaseModel):
 class ProcessCreateSchema(BaseModel):
     """
     Schema para criação de novo processo.
-    Validação de dados de entrada via Pydantic.
+    Adaptado conforme tabela de controle de processos 2026.
     """
-    protocol_number: str  # Número de protocolo único (ex: PGR-2025-0001)
-    type_code: str  # Código do tipo (PROM_CAP ou PROG_MER)
-    applicant_name: str  # Nome completo do requerente
-    applicant_registration: Optional[str] = None  # Matrícula do servidor (opcional)
-    created_date: Optional[str] = None  # Data de criação (YYYY-MM-DD, default: hoje)
-    status_code: str = "RECEBIDO"  # Status inicial (default: RECEBIDO)
-    notes: Optional[str] = None  # Observações iniciais (opcional)
+    # IDs de identificação
+    processo_adm_1doc: Optional[str] = None  # PROCESSO ADM 1DOC
+    processo_judicial: Optional[str] = None  # PROCESSO JUDICIAL
+    
+    # Informações principais
+    partes: Optional[str] = None  # PARTES
+    tema_observacoes: Optional[str] = None  # TEMA – OBSERVAÇÕES
+    
+    # Datas e prazos
+    data_recebimento_mes_ano: Optional[str] = None  # DATA RECEBIMENTO (MÊS/ANO) - ex: "DEZ/2025"
+    prazo_info_estag: Optional[str] = None  # PRAZO INFO – ESTAG (DIA/MÊS) - ex: "13/02"
+    prazo_final: Optional[str] = None  # PRAZO FINAL (DD/MM) - ex: "16/02"
+    tipo_ato: Optional[str] = None  # TIPO DE ATO (PETIÇÃO OU PARECER OU SEM ATO)
+    data_realizacao_ato: Optional[str] = None  # DATA DE REALIZAÇÃO DO ATO (DD/MM/AAAA)
+    
+    # Campos legados (para compatibilidade)
+    protocol_number: Optional[str] = None
+    type_code: Optional[str] = None
+    applicant_name: Optional[str] = None
+    applicant_registration: Optional[str] = None
+    created_date: Optional[str] = None
+    status_code: str = "RECEBIDO"
+    notes: Optional[str] = None
 
 
 class ProcessResponseSchema(BaseModel):
     """
-    Schema de resposta com dados básicos do processo.
+    Schema de resposta com dados do processo.
+    Adaptado conforme tabela de controle de processos 2026.
     """
     id: int
-    protocol_number: str
-    type_code: str
-    applicant_name: str
-    created_date: str
-    status_code: str
-    financial_effective_date: Optional[str]
+    processo_adm_1doc: Optional[str] = None
+    processo_judicial: Optional[str] = None
+    partes: Optional[str] = None
+    tema_observacoes: Optional[str] = None
+    data_recebimento_mes_ano: Optional[str] = None
+    prazo_info_estag: Optional[str] = None
+    prazo_final: Optional[str] = None
+    tipo_ato: Optional[str] = None
+    data_realizacao_ato: Optional[str] = None
+    prazo_color: Optional[str] = None  # Cor calculada: green, yellow, orange, red
+    
+    # Campos legados
+    protocol_number: Optional[str] = None
+    type_code: Optional[str] = None
+    applicant_name: Optional[str] = None
+    created_date: Optional[str] = None
+    status_code: Optional[str] = None
+    financial_effective_date: Optional[str] = None
     
     class Config:
         from_attributes = True  # Permite conversão de modelo SQLAlchemy
@@ -207,6 +236,64 @@ def get_db():
 
 
 # ============ Funções Auxiliares ============
+
+def calculate_prazo_color(prazo_final: Optional[str]) -> str:
+    """
+    Calcula a cor do prazo baseado na proximidade da data.
+    
+    Cores:
+    - VERDE: Mais de 15 dias para vencer
+    - AMARELO: Entre 8 e 15 dias para vencer
+    - LARANJA: Entre 1 e 7 dias para vencer
+    - VERMELHO: Vencido ou vencendo hoje
+    
+    Args:
+        prazo_final: String no formato "DD/MM" (ex: "16/02")
+    
+    Returns:
+        String com a cor: "green", "yellow", "orange", "red" ou None
+    """
+    if not prazo_final or not prazo_final.strip():
+        return None
+    
+    try:
+        # Parse da data no formato DD/MM
+        parts = prazo_final.strip().split('/')
+        if len(parts) != 2:
+            return None
+        
+        day = int(parts[0])
+        month = int(parts[1])
+        
+        # Obter ano atual
+        today = datetime.now().date()
+        year = today.year
+        
+        # Criar data do prazo (assumindo ano atual)
+        prazo_date = date(year, month, day)
+        
+        # Se a data já passou neste ano, considerar próximo ano
+        if prazo_date < today:
+            prazo_date = date(year + 1, month, day)
+        
+        # Calcular diferença em dias
+        days_diff = (prazo_date - today).days
+        
+        # Determinar cor baseado na proximidade
+        if days_diff < 0:
+            return "red"  # Vencido
+        elif days_diff == 0:
+            return "red"  # Vencendo hoje
+        elif days_diff <= 7:
+            return "orange"  # 1 a 7 dias
+        elif days_diff <= 15:
+            return "yellow"  # 8 a 15 dias
+        else:
+            return "green"  # Mais de 15 dias
+            
+    except (ValueError, IndexError):
+        return None
+
 
 def calculate_due_date(start_date: date, days: int, business_days: bool = False) -> date:
     """
@@ -370,50 +457,87 @@ def create_process(payload: ProcessCreateSchema, db: Session = Depends(get_db)):
         HTTPException 400: Dados inválidos
         HTTPException 409: Protocolo já existe
     """
-    # 1. Validar tipo de processo
-    process_type = db.query(models.ProcessType).filter(
-        models.ProcessType.code == payload.type_code
-    ).first()
+    # 1. Validar tipo de processo (se fornecido)
+    process_type = None
+    if payload.type_code:
+        process_type = db.query(models.ProcessType).filter(
+            models.ProcessType.code == payload.type_code
+        ).first()
+        
+        if not process_type:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tipo de processo inválido: {payload.type_code}"
+            )
     
-    if not process_type:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Tipo de processo inválido: {payload.type_code}"
-        )
+    # 2. Validar status (se fornecido, ou usar padrão)
+    status = None
+    if payload.status_code:
+        status = db.query(models.Status).filter(
+            models.Status.code == payload.status_code
+        ).first()
+        
+        if not status:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Status inválido: {payload.status_code}"
+            )
     
-    # 2. Validar status
-    status = db.query(models.Status).filter(
-        models.Status.code == payload.status_code
-    ).first()
+    # 3. Verificar se protocolo já existe (se fornecido)
+    if payload.protocol_number:
+        existing = db.query(models.Process).filter(
+            models.Process.protocol_number == payload.protocol_number
+        ).first()
+        
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Protocolo já existe: {payload.protocol_number}"
+            )
     
-    if not status:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Status inválido: {payload.status_code}"
-        )
+    # Verificar se algum ID de processo já existe
+    if payload.processo_adm_1doc:
+        existing = db.query(models.Process).filter(
+            models.Process.processo_adm_1doc == payload.processo_adm_1doc
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Processo ADM 1DOC já existe: {payload.processo_adm_1doc}"
+            )
     
-    # 3. Verificar se protocolo já existe
-    existing = db.query(models.Process).filter(
-        models.Process.protocol_number == payload.protocol_number
-    ).first()
-    
-    if existing:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Protocolo já existe: {payload.protocol_number}"
-        )
+    if payload.processo_judicial:
+        existing = db.query(models.Process).filter(
+            models.Process.processo_judicial == payload.processo_judicial
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Processo Judicial já existe: {payload.processo_judicial}"
+            )
     
     # 4. Definir data de criação (hoje se não informada)
     created_date = date.fromisoformat(payload.created_date) if payload.created_date else date.today()
     
     # 5. Criar o processo
     new_process = models.Process(
-        protocol_number=payload.protocol_number,
-        type_id=process_type.id,
+        # Novos campos
+        processo_adm_1doc=payload.processo_adm_1doc,
+        processo_judicial=payload.processo_judicial,
+        partes=payload.partes,
+        tema_observacoes=payload.tema_observacoes,
+        data_recebimento_mes_ano=payload.data_recebimento_mes_ano,
+        prazo_info_estag=payload.prazo_info_estag,
+        prazo_final=payload.prazo_final,
+        tipo_ato=payload.tipo_ato,
+        data_realizacao_ato=payload.data_realizacao_ato,
+        # Campos legados
+        protocol_number=payload.protocol_number or f"PGR-{date.today().year}-{db.query(models.Process).count() + 1:04d}",
+        type_id=process_type.id if process_type else None,
         applicant_name=payload.applicant_name,
         applicant_registration=payload.applicant_registration,
         created_date=created_date,
-        status_id=status.id,
+        status_id=status.id if status else None,
         notes=payload.notes
     )
     
@@ -427,14 +551,29 @@ def create_process(payload: ProcessCreateSchema, db: Session = Depends(get_db)):
     # 7. Gerar prazos legais
     create_process_deadlines(db, new_process.id, process_type.id, created_date)
     
-    # 8. Retornar resposta
+    # 8. Calcular cor do prazo
+    prazo_color = calculate_prazo_color(new_process.prazo_final)
+    
+    # 9. Retornar resposta
     return ProcessResponseSchema(
         id=new_process.id,
+        # Novos campos
+        processo_adm_1doc=new_process.processo_adm_1doc,
+        processo_judicial=new_process.processo_judicial,
+        partes=new_process.partes,
+        tema_observacoes=new_process.tema_observacoes,
+        data_recebimento_mes_ano=new_process.data_recebimento_mes_ano,
+        prazo_info_estag=new_process.prazo_info_estag,
+        prazo_final=new_process.prazo_final,
+        tipo_ato=new_process.tipo_ato,
+        data_realizacao_ato=new_process.data_realizacao_ato,
+        prazo_color=prazo_color,
+        # Campos legados
         protocol_number=new_process.protocol_number,
-        type_code=process_type.code,
+        type_code=process_type.code if process_type else None,
         applicant_name=new_process.applicant_name,
-        created_date=str(new_process.created_date),
-        status_code=status.code,
+        created_date=str(new_process.created_date) if new_process.created_date else None,
+        status_code=status.code if status else None,
         financial_effective_date=str(new_process.financial_effective_date) if new_process.financial_effective_date else None
     )
 
@@ -475,13 +614,28 @@ def list_processes(
     # Converter para schema de resposta
     result = []
     for proc in processes:
+        # Calcular cor do prazo
+        prazo_color = calculate_prazo_color(proc.prazo_final)
+        
         result.append(ProcessResponseSchema(
             id=proc.id,
+            # Novos campos
+            processo_adm_1doc=proc.processo_adm_1doc,
+            processo_judicial=proc.processo_judicial,
+            partes=proc.partes,
+            tema_observacoes=proc.tema_observacoes,
+            data_recebimento_mes_ano=proc.data_recebimento_mes_ano,
+            prazo_info_estag=proc.prazo_info_estag,
+            prazo_final=proc.prazo_final,
+            tipo_ato=proc.tipo_ato,
+            data_realizacao_ato=proc.data_realizacao_ato,
+            prazo_color=prazo_color,
+            # Campos legados
             protocol_number=proc.protocol_number,
-            type_code=proc.process_type.code,
+            type_code=proc.process_type.code if proc.process_type else None,
             applicant_name=proc.applicant_name,
-            created_date=str(proc.created_date),
-            status_code=proc.status.code,
+            created_date=str(proc.created_date) if proc.created_date else None,
+            status_code=proc.status.code if proc.status else None,
             financial_effective_date=str(proc.financial_effective_date) if proc.financial_effective_date else None
         ))
     
