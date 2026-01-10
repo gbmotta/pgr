@@ -307,13 +307,18 @@ def root():
     """
     Endpoint raiz - tenta servir frontend React ou retorna info da API.
     """
-    # Tentar servir React primeiro
-    if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
-        return FileResponse(str(frontend_dist_path / "index.html"))
-    
-    # Fallback para frontend antigo
-    if frontend_old_path.exists() and (frontend_old_path / "index.html").exists():
-        return FileResponse(str(frontend_old_path / "index.html"))
+    try:
+        # Tentar servir React primeiro
+        if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
+            return FileResponse(str(frontend_dist_path / "index.html"))
+        
+        # Fallback para frontend antigo
+        if frontend_old_path.exists() and (frontend_old_path / "index.html").exists():
+            return FileResponse(str(frontend_old_path / "index.html"))
+    except Exception as e:
+        import logging
+        logging.warning(f"Erro ao servir frontend: {e}")
+        # Continuar e retornar JSON se falhar
     
     # Se nenhum frontend, retornar info da API
     return {
