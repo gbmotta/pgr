@@ -1,12 +1,17 @@
-# Nixpacks detecta Python automaticamente pelo requirements.txt
-# Nixpacks instala pip e dependências Python automaticamente
-# Só precisamos especificar Node.js para o React
+# Nixpacks configuração para Python + Node.js
+# Garantir que Python e pip são instalados
 
 [phases.setup]
-nixPkgs = ['nodejs-18_x']
+nixPkgs = ['nodejs-18_x', 'python311', 'pip']
+
+# Instalar dependências Python primeiro
+[phases.install]
+cmds = [
+  "pip install --upgrade pip",
+  "pip install -r requirements.txt"
+]
 
 # Build do frontend React
-# Python e suas dependências são instalados automaticamente pelo Nixpacks
 [phases.build]
 cmds = [
   "cd frontend-react && npm install && npm run build"
