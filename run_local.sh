@@ -27,7 +27,9 @@ fi
 echo -e "${YELLOW}📦 Verificando dependências Python...${NC}"
 if ! python3 -c "import fastapi" &> /dev/null; then
     echo "Instalando dependências Python..."
-    python3 -m pip install -r requirements.txt
+    python3 -m pip install --upgrade pip setuptools wheel
+    # Usar --prefer-binary para usar wheels quando disponível (evita necessidade de compilador C)
+    python3 -m pip install --prefer-binary -r requirements.txt
 else
     echo -e "${GREEN}✅ Dependências Python já instaladas${NC}"
 fi
