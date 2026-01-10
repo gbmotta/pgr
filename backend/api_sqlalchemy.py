@@ -597,18 +597,22 @@ def list_processes(
     Returns:
         Lista de processos
     """
-    # Query base com joins
-    query = db.query(models.Process).join(models.ProcessType).join(models.Status)
+    # Query base com LEFT JOIN (porque type_id e status_id podem ser None)
+    from sqlalchemy.orm import joinedload
+    query = db.query(models.Process).options(
+        joinedload(models.Process.process_type),
+        joinedload(models.Process.status)
+    )
     
     # Aplicar filtros se fornecidos
     if type_code:
-        query = query.filter(models.ProcessType.code == type_code)
+        query = query.join(models.ProcessType).filter(models.ProcessType.code == type_code)
     
     if status_code:
-        query = query.filter(models.Status.code == status_code)
+        query = query.join(models.Status).filter(models.Status.code == status_code)
     
-    # Ordenar por data de criação (mais recentes primeiro)
-    query = query.order_by(models.Process.created_date.desc())
+    # Ordenar por ID (mais recentes primeiro) ou por prazo_final
+    query = query.order_by(models.Process.id.desc())
     
     # Executar query
     processes = query.all()
@@ -616,30 +620,35 @@ def list_processes(
     # Converter para schema de resposta
     result = []
     for proc in processes:
-        # Calcular cor do prazo
-        prazo_color = calculate_prazo_color(proc.prazo_final)
-        
-        result.append(ProcessResponseSchema(
-            id=proc.id,
-            # Novos campos
-            processo_adm_1doc=proc.processo_adm_1doc,
-            processo_judicial=proc.processo_judicial,
-            partes=proc.partes,
-            tema_observacoes=proc.tema_observacoes,
-            data_recebimento_mes_ano=proc.data_recebimento_mes_ano,
-            prazo_info_estag=proc.prazo_info_estag,
-            prazo_final=proc.prazo_final,
-            tipo_ato=proc.tipo_ato,
-            data_realizacao_ato=proc.data_realizacao_ato,
-            prazo_color=prazo_color,
-            # Campos legados
-            protocol_number=proc.protocol_number,
-            type_code=proc.process_type.code if proc.process_type else None,
-            applicant_name=proc.applicant_name,
-            created_date=str(proc.created_date) if proc.created_date else None,
-            status_code=proc.status.code if proc.status else None,
-            financial_effective_date=str(proc.financial_effective_date) if proc.financial_effective_date else None
-        ))
+        try:
+            # Calcular cor do prazo
+            prazo_color = calculate_prazo_color(proc.prazo_final)
+            
+            result.append(ProcessResponseSchema(
+                id=proc.id,
+                # Novos campos
+                processo_adm_1doc=proc.processo_adm_1doc,
+                processo_judicial=proc.processo_judicial,
+                partes=proc.partes,
+                tema_observacoes=proc.tema_observacoes,
+                data_recebimento_mes_ano=proc.data_recebimento_mes_ano,
+                prazo_info_estag=proc.prazo_info_estag,
+                prazo_final=proc.prazo_final,
+                tipo_ato=proc.tipo_ato,
+                data_realizacao_ato=proc.data_realizacao_ato,
+                prazo_color=prazo_color,
+                # Campos legados
+                protocol_number=proc.protocol_number,
+                type_code=getattr(proc.process_type, 'code', None) if proc.process_type else None,
+                applicant_name=proc.applicant_name,
+                created_date=str(proc.created_date) if proc.created_date else None,
+                status_code=getattr(proc.status, 'code', None) if proc.status else None,
+                financial_effective_date=str(proc.financial_effective_date) if proc.financial_effective_date else None
+            ))
+        except Exception as e:
+            import logging
+            logging.error(f"Erro ao processar processo {proc.id}: {e}")
+            continue
     
     return result
 
