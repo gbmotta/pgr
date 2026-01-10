@@ -4,7 +4,7 @@ import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
+import DashboardNew from './pages/DashboardNew'
 import ProcessDetail from './pages/ProcessDetail'
 import UploadProcesses from './pages/UploadProcesses'
 import Reports from './pages/Reports'
@@ -35,7 +35,7 @@ function App() {
               }
             >
               <Route index element={<Navigate to="/dashboard" replace />} />
-              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="dashboard" element={<DashboardNew />} />
               <Route path="process/:protocol" element={<ProcessDetail />} />
               <Route path="upload" element={<UploadProcesses />} />
               <Route path="reports" element={<Reports />} />
