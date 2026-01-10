@@ -76,6 +76,10 @@ frontend_old_path = Path(__file__).parent.parent / "frontend"
 if frontend_dist_path.exists() and (frontend_dist_path / "assets").exists():
     app.mount("/assets", StaticFiles(directory=str(frontend_dist_path / "assets")), name="assets")
 
+# Servir frontend React completo (para SPA routing)
+if frontend_dist_path.exists():
+    app.mount("/static", StaticFiles(directory=str(frontend_dist_path)), name="static")
+
 # Fallback para frontend antigo
 if frontend_old_path.exists():
     app.mount("/pgr", StaticFiles(directory=str(frontend_old_path), html=True), name="pgr")
@@ -397,11 +401,17 @@ def root():
     try:
         # Tentar servir React primeiro
         if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
-            return FileResponse(str(frontend_dist_path / "index.html"))
+            return FileResponse(
+                str(frontend_dist_path / "index.html"),
+                media_type="text/html"
+            )
         
         # Fallback para frontend antigo
         if frontend_old_path.exists() and (frontend_old_path / "index.html").exists():
-            return FileResponse(str(frontend_old_path / "index.html"))
+            return FileResponse(
+                str(frontend_old_path / "index.html"),
+                media_type="text/html"
+            )
     except Exception as e:
         import logging
         logging.warning(f"Erro ao servir frontend: {e}")
@@ -597,19 +607,15 @@ def list_processes(
     Returns:
         Lista de processos
     """
-    # Query base com LEFT JOIN (porque type_id e status_id podem ser None)
-    from sqlalchemy.orm import joinedload
-    query = db.query(models.Process).options(
-        joinedload(models.Process.process_type),
-        joinedload(models.Process.status)
-    )
+    # Query base - sem JOIN obrigatório porque type_id e status_id podem ser None
+    query = db.query(models.Process)
     
-    # Aplicar filtros se fornecidos
+    # Aplicar filtros se fornecidos (com LEFT JOIN)
     if type_code:
-        query = query.join(models.ProcessType).filter(models.ProcessType.code == type_code)
+        query = query.join(models.ProcessType, isouter=True).filter(models.ProcessType.code == type_code)
     
     if status_code:
-        query = query.join(models.Status).filter(models.Status.code == status_code)
+        query = query.join(models.Status, isouter=True).filter(models.Status.code == status_code)
     
     # Ordenar por ID (mais recentes primeiro) ou por prazo_final
     query = query.order_by(models.Process.id.desc())
