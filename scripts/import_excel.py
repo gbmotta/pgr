@@ -19,7 +19,7 @@ from backend.models_sqlalchemy import (  # noqa: E402
 
 def parse_date(date_str) -> Optional[date]:
     """
-    Converte diversos formatos de data para objeto date do Python.
+    Converte diversos formatos de data para objeto date do Python.image.png
     Aceita: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, objetos datetime do pandas.
     """
     if pd.isna(date_str) or date_str is None:

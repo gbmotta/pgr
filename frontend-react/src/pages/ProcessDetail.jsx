@@ -1,27 +1,57 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { 
-  ArrowLeft, 
-  Download, 
-  Upload as UploadIcon,
+  ArrowLeft,
+  Clock,
   CheckCircle,
-  XCircle,
-  Calendar,
   FileText
 } from 'lucide-react'
-import { useState } from 'react'
-import toast from 'react-hot-toast'
+import DocumentChecklist from '../components/DocumentChecklist'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
+
+/**
+ * Componente Timeline para exibir eventos do processo
+ */
+function TimelineItem({ event, isLast = false }) {
+  return (
+    <div className="relative flex items-start">
+      {/* Linha vertical */}
+      {!isLast && (
+        <div className="absolute left-4 top-8 w-0.5 h-full bg-gray-300"></div>
+      )}
+      
+      {/* Círculo azul */}
+      <div className="relative z-10 flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 border-4 border-white shadow-sm">
+        <div className="w-2 h-2 rounded-full bg-white"></div>
+      </div>
+      
+      {/* Conteúdo do evento */}
+      <div className="ml-4 pb-8 flex-1">
+        <h3 className="text-base font-semibold text-gray-900 font-sans">
+          {event.title}
+        </h3>
+        {event.date && (
+          <p className="mt-1 text-sm text-gray-600 font-sans">
+            {event.date}
+          </p>
+        )}
+        {event.description && (
+          <p className="mt-2 text-sm text-gray-500 font-sans">
+            {event.description}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export default function ProcessDetail() {
   const { protocol } = useParams()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const [uploading, setUploading] = useState(false)
 
   const { data: process, isLoading } = useQuery({
     queryKey: ['process', protocol],
@@ -31,242 +61,222 @@ export default function ProcessDetail() {
     },
   })
 
-  const { data: attachments } = useQuery({
-    queryKey: ['attachments', protocol],
-    queryFn: async () => {
-      try {
-        const response = await axios.get(`${API_URL}/api/processes/${protocol}/attachments`)
-        return response.data
-      } catch {
-        return []
-      }
-    },
-  })
-
-  const downloadReport = async () => {
-    try {
-      const response = await axios.get(
-        `${API_URL}/api/processes/${protocol}/report`,
-        { responseType: 'blob' }
-      )
-      const url = window.URL.createObjectURL(new Blob([response.data]))
-      const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', `${protocol}_relatorio.pdf`)
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      toast.success('Relatório gerado com sucesso!')
-    } catch (error) {
-      toast.error('Erro ao gerar relatório')
-    }
-  }
-
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-
-    setUploading(true)
-    const formData = new FormData()
-    formData.append('file', file)
-
-    try {
-      await axios.post(`${API_URL}/api/processes/${protocol}/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      toast.success('Documento enviado com sucesso!')
-      queryClient.invalidateQueries(['attachments', protocol])
-      queryClient.invalidateQueries(['process', protocol])
-    } catch (error) {
-      toast.error('Erro ao enviar documento')
-    } finally {
-      setUploading(false)
-      e.target.value = ''
-    }
-  }
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1A2B3C]"></div>
       </div>
     )
   }
 
   if (!process) {
-    return <div>Processo não encontrado</div>
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <p className="text-lg font-medium text-gray-900 font-sans">Processo não encontrado</p>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="mt-4 text-sm text-blue-600 hover:text-blue-800 font-sans"
+          >
+            Voltar para o Dashboard
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Preparar eventos da timeline
+  const timelineEvents = []
+
+  // Evento: Recebimento
+  if (process.created_date || process.data_recebimento_mes_ano) {
+    const recebimentoDate = process.data_recebimento_mes_ano 
+      ? process.data_recebimento_mes_ano 
+      : process.created_date
+        ? format(new Date(process.created_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+        : null
+
+    timelineEvents.push({
+      title: 'Recebimento',
+      date: recebimentoDate,
+      description: 'Processo recebido no sistema',
+      icon: FileText
+    })
+  }
+
+  // Evento: Análise de Prazo
+  if (process.prazo_final || process.prazo_info_estag) {
+    const prazoDate = process.prazo_final || process.prazo_info_estag
+    timelineEvents.push({
+      title: 'Análise de Prazo',
+      date: prazoDate ? `Prazo: ${prazoDate}` : null,
+      description: 'Prazo definido para análise do processo',
+      icon: Clock
+    })
+  }
+
+  // Evento: Conclusão
+  if (process.data_realizacao_ato || process.closed_date) {
+    let conclusaoDate = null
+    
+    if (process.data_realizacao_ato) {
+      // Tentar parsear data no formato DD/MM/AAAA ou Date
+      try {
+        if (process.data_realizacao_ato.includes('/')) {
+          // Formato DD/MM/AAAA
+          const [day, month, year] = process.data_realizacao_ato.split('/').map(Number)
+          conclusaoDate = format(new Date(year, month - 1, day), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+        } else {
+          // Formato ISO Date
+          conclusaoDate = format(new Date(process.data_realizacao_ato), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+        }
+      } catch {
+        conclusaoDate = process.data_realizacao_ato
+      }
+    } else if (process.closed_date) {
+      conclusaoDate = format(new Date(process.closed_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+    }
+
+    timelineEvents.push({
+      title: 'Conclusão',
+      date: conclusaoDate,
+      description: process.tipo_ato || 'Processo concluído',
+      icon: CheckCircle
+    })
+  }
+
+  // Se não houver eventos, adicionar pelo menos o recebimento
+  if (timelineEvents.length === 0) {
+    timelineEvents.push({
+      title: 'Recebimento',
+      date: process.created_date 
+        ? format(new Date(process.created_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+        : null,
+      description: 'Processo registrado no sistema',
+      icon: FileText
+    })
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8">
-      <div className="mb-6">
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Voltar
-        </button>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">{process.protocol_number}</h1>
-            <p className="mt-2 text-gray-600">{process.applicant_name}</p>
-          </div>
-          <div className="flex space-x-3">
-            <button
-              onClick={downloadReport}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Gerar PDF
-            </button>
-            <label className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 cursor-pointer">
-              <UploadIcon className="mr-2 h-4 w-4" />
-              {uploading ? 'Enviando...' : 'Enviar Documento'}
-              <input
-                type="file"
-                className="hidden"
-                onChange={handleFileUpload}
-                disabled={uploading}
-              />
-            </label>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-6">
+      {/* Botão Voltar */}
+      <button
+        onClick={() => navigate('/dashboard')}
+        className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 font-sans"
+      >
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Voltar
+      </button>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Informações principais */}
-          <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Informações do Processo</h2>
-            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Tipo</dt>
-                <dd className="mt-1 text-sm text-gray-900">{process.type?.name || process.type_name}</dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Status</dt>
-                <dd className="mt-1 text-sm text-gray-900">{process.status?.label || process.status_code}</dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Data de Criação</dt>
-                <dd className="mt-1 text-sm text-gray-900">
-                  {format(new Date(process.created_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                </dd>
-              </div>
-              {process.applicant_registration && (
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Matrícula</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{process.applicant_registration}</dd>
-                </div>
+      {/* Layout: Card à esquerda e Timeline à direita */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Card Branco - Dados Principais (Lado Esquerdo) */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-serif font-bold text-gray-900 mb-6">
+            Dados do Processo
+          </h2>
+          
+          <div className="space-y-6">
+            {/* Número do Processo */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 font-sans uppercase tracking-wide mb-2">
+                Número
+              </h3>
+              <p className="text-lg font-semibold text-gray-900 font-sans">
+                {process.processo_adm_1doc || process.processo_judicial || process.protocol_number || 'N/A'}
+              </p>
+              {process.processo_judicial && process.processo_adm_1doc && (
+                <p className="text-sm text-gray-600 font-sans mt-1">
+                  Judicial: {process.processo_judicial}
+                </p>
               )}
-            </dl>
-            {process.parecer && (
-              <div className="mt-4">
-                <dt className="text-sm font-medium text-gray-500">Parecer</dt>
-                <dd className="mt-1 text-sm text-gray-900">{process.parecer}</dd>
+            </div>
+
+            {/* Juízo */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 font-sans uppercase tracking-wide mb-2">
+                Juízo
+              </h3>
+              <p className="text-base text-gray-900 font-sans">
+                {process.tipo_ato || 'Não informado'}
+              </p>
+            </div>
+
+            {/* Partes */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 font-sans uppercase tracking-wide mb-2">
+                Partes
+              </h3>
+              <p className="text-base text-gray-900 font-sans whitespace-pre-wrap">
+                {process.partes || 'Não informado'}
+              </p>
+            </div>
+
+            {/* Informações Adicionais */}
+            {(process.tema_observacoes || process.data_recebimento_mes_ano) && (
+              <div className="pt-4 border-t border-gray-200 space-y-4">
+                {process.tema_observacoes && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 font-sans uppercase tracking-wide mb-2">
+                      Tema / Observações
+                    </h3>
+                    <p className="text-sm text-gray-700 font-sans whitespace-pre-wrap">
+                      {process.tema_observacoes}
+                    </p>
+                  </div>
+                )}
+                
+                {process.data_recebimento_mes_ano && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 font-sans uppercase tracking-wide mb-2">
+                      Data de Recebimento
+                    </h3>
+                    <p className="text-sm text-gray-700 font-sans">
+                      {process.data_recebimento_mes_ano}
+                    </p>
+                  </div>
+                )}
+
+                {process.prazo_final && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 font-sans uppercase tracking-wide mb-2">
+                      Prazo Final
+                    </h3>
+                    <p className="text-sm text-gray-700 font-sans">
+                      {process.prazo_final}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
-
-          {/* Documentos */}
-          {process.documents && process.documents.length > 0 && (
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Documentos</h2>
-              <div className="space-y-3">
-                {process.documents.map((doc, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex items-center justify-between p-3 rounded-lg ${
-                      doc.provided ? 'bg-green-50' : 'bg-red-50'
-                    }`}
-                  >
-                    <div className="flex items-center">
-                      {doc.provided ? (
-                        <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
-                      ) : (
-                        <XCircle className="h-5 w-5 text-red-500 mr-3" />
-                      )}
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{doc.name}</div>
-                        {doc.provided_date && (
-                          <div className="text-xs text-gray-500">
-                            Fornecido em: {format(new Date(doc.provided_date), 'dd/MM/yyyy')}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {doc.required && (
-                      <span className="text-xs text-red-600 font-medium">Obrigatório</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Prazos */}
-          {process.deadlines && process.deadlines.length > 0 && (
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Prazos</h2>
-              <div className="space-y-3">
-                {process.deadlines.map((deadline, idx) => {
-                  const isOverdue = new Date(deadline.due_date) < new Date() && !deadline.closed
-                  return (
-                    <div
-                      key={idx}
-                      className={`flex items-center justify-between p-3 rounded-lg ${
-                        isOverdue ? 'bg-red-50' : deadline.closed ? 'bg-green-50' : 'bg-yellow-50'
-                      }`}
-                    >
-                      <div className="flex items-center">
-                        <Calendar className="h-5 w-5 text-gray-400 mr-3" />
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">{deadline.name}</div>
-                          <div className="text-xs text-gray-500">
-                            {format(new Date(deadline.due_date), "dd 'de' MMMM 'de' yyyy", {
-                              locale: ptBR,
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                      {deadline.closed ? (
-                        <span className="text-xs text-green-600 font-medium">Cumprido</span>
-                      ) : isOverdue ? (
-                        <span className="text-xs text-red-600 font-medium">Vencido</span>
-                      ) : (
-                        <span className="text-xs text-yellow-600 font-medium">Pendente</span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Anexos */}
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Anexos</h2>
-          {attachments && attachments.length > 0 ? (
-            <div className="space-y-2">
-              {attachments.map((attachment) => (
-                <a
-                  key={attachment.id}
-                  href={`${API_URL}${attachment.download_url}`}
-                  className="flex items-center p-2 rounded hover:bg-gray-50"
-                >
-                  <FileText className="h-4 w-4 text-gray-400 mr-2" />
-                  <span className="text-sm text-gray-900 truncate">{attachment.original_filename}</span>
-                </a>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">Nenhum anexo</p>
-          )}
+        {/* Timeline Vertical (Lado Direito) */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-serif font-bold text-gray-900 mb-6">
+            Linha do Tempo
+          </h2>
+          
+          <div className="relative">
+            {timelineEvents.map((event, index) => (
+              <TimelineItem
+                key={index}
+                event={event}
+                isLast={index === timelineEvents.length - 1}
+              />
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Checklist de Documentos */}
+      {process.documents && process.documents.length > 0 && (
+        <DocumentChecklist
+          processProtocol={protocol}
+          documents={process.documents}
+        />
+      )}
     </div>
   )
 }
-

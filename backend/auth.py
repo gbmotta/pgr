@@ -6,7 +6,7 @@ Implementa autenticação JWT para o sistema.
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -20,21 +20,30 @@ SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production-min-3
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 horas
 
-# Contexto de hash de senha
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verifica se a senha está correta."""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        # Converter string para bytes se necessário
+        if isinstance(hashed_password, str):
+            hashed_password = hashed_password.encode('utf-8')
+        if isinstance(plain_password, str):
+            plain_password = plain_password.encode('utf-8')
+        return bcrypt.checkpw(plain_password, hashed_password)
+    except Exception:
+        return False
 
 
 def get_password_hash(password: str) -> str:
     """Gera hash da senha."""
-    return pwd_context.hash(password)
+    if isinstance(password, str):
+        password = password.encode('utf-8')
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password, salt)
+    return hashed.decode('utf-8')
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):

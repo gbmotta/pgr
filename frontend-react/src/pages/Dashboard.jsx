@@ -14,7 +14,7 @@ import {
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
 
 export default function Dashboard() {
   const navigate = useNavigate()

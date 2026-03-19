@@ -368,6 +368,107 @@ def get_session(engine):
 
 # ============ Dependency Injection (para FastAPI) ============
 
+class LinkedSheet(Base):
+    """
+    Google Sheets linked to the system for dynamic updates.
+    """
+    __tablename__ = 'linked_sheets'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    file_id = Column(String(255), unique=True, nullable=False, index=True)
+    url = Column(String(500), nullable=False)
+    channel_id = Column(String(255), nullable=True)
+    resource_id = Column(String(255), nullable=True, index=True)
+    expiration = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    last_sync = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    sync_history = relationship("SheetSyncHistory", back_populates="linked_sheet", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        Index('idx_linked_sheets_file_id', 'file_id'),
+        Index('idx_linked_sheets_resource_id', 'resource_id'),
+    )
+
+
+class SheetSyncHistory(Base):
+    """
+    Histórico de sincronizações de planilhas do Google Sheets.
+    Registra cada sincronização automática via webhook.
+    """
+    __tablename__ = 'sheet_sync_history'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    linked_sheet_id = Column(Integer, ForeignKey('linked_sheets.id'), nullable=False, index=True)
+    sync_started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    sync_completed_at = Column(DateTime, nullable=True)
+    status = Column(String(50), nullable=False, default='processing')  # processing, success, error
+    rows_processed = Column(Integer, default=0, nullable=False)
+    rows_imported = Column(Integer, default=0, nullable=False)
+    rows_updated = Column(Integer, default=0, nullable=False)
+    rows_skipped = Column(Integer, default=0, nullable=False)
+    errors_count = Column(Integer, default=0, nullable=False)
+    error_message = Column(Text, nullable=True)
+    sync_details = Column(Text, nullable=True)  # JSON com detalhes da sincronização
+    
+    linked_sheet = relationship("LinkedSheet", back_populates="sync_history")
+    
+    __table_args__ = (
+        Index('idx_sync_history_linked_sheet', 'linked_sheet_id'),
+        Index('idx_sync_history_started', 'sync_started_at'),
+    )
+
+
+class ProcessChangeHistory(Base):
+    """
+    Histórico de mudanças e trilha de auditoria para processos.
+    
+    Rastreia todas as alterações em processos para auditoria legal e rastreabilidade.
+    Armazena valores anteriores, origem da mudança e timestamp.
+    """
+    __tablename__ = 'process_change_history'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    process_id = Column(Integer, ForeignKey('processes.id'), nullable=False, index=True)
+    
+    # Identificação do processo no momento da mudança
+    processo_adm_1doc = Column(String(100), nullable=True, index=True)
+    processo_judicial = Column(String(100), nullable=True)
+    protocol_number = Column(String(50), nullable=True)
+    
+    # Campo alterado
+    field_name = Column(String(100), nullable=False, index=True)  # Nome do campo alterado
+    field_label = Column(String(200), nullable=True)  # Label legível do campo
+    
+    # Valores
+    old_value = Column(Text, nullable=True)  # Valor anterior
+    new_value = Column(Text, nullable=True)  # Valor novo
+    
+    # Origem da mudança
+    change_source = Column(String(50), nullable=False, index=True)  # 'upload', 'google_sheets', 'manual', 'api'
+    source_details = Column(Text, nullable=True)  # JSON com detalhes adicionais (filename, file_id, user_id, etc.)
+    
+    # Metadados
+    changed_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    changed_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # Usuário que fez a mudança (se aplicável)
+    change_type = Column(String(20), nullable=False, default='update')  # 'create', 'update', 'delete'
+    
+    # Relacionamentos
+    process = relationship("Process", backref="change_history")
+    changed_by_user = relationship("User", foreign_keys=[changed_by_user_id])
+    
+    # Índices
+    __table_args__ = (
+        Index('idx_change_history_process', 'process_id'),
+        Index('idx_change_history_field', 'field_name'),
+        Index('idx_change_history_source', 'change_source'),
+        Index('idx_change_history_date', 'changed_at'),
+        Index('idx_change_history_process_field', 'process_id', 'field_name'),
+    )
+
+
 def get_db():
     """
     Dependency para FastAPI que fornece uma sessão de banco.

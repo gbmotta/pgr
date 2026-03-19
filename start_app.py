@@ -53,7 +53,7 @@ if not hasattr(api_sqlalchemy, 'app'):
 print("✅ App FastAPI encontrado")
 
 # Porta - Railway fornece via variável de ambiente
-port = int(os.environ.get('PORT', 8000))
+port = int(os.environ.get('PORT', 8001))
 host = '0.0.0.0'  # Railway precisa escutar em 0.0.0.0
 
 print(f"🚀 Iniciando servidor em {host}:{port}...")

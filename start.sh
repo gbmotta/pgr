@@ -14,7 +14,7 @@ cd backend || (echo "Diretório backend não encontrado!" && exit 1)
 
 echo "📂 Diretório backend: $(pwd)"
 echo "🐍 Python: $(which python3)"
-echo "📋 PORT: ${PORT:-8000}"
+echo "📋 PORT: ${PORT:-8001}"
 
-exec python3 -m uvicorn api_sqlalchemy:app --host 0.0.0.0 --port ${PORT:-8000}
+exec python3 -m uvicorn api_sqlalchemy:app --host 0.0.0.0 --port ${PORT:-8001}
 

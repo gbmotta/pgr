@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
 
 // Função para obter cor baseada na string da cor (visual jurídico profissional)
 const getColorClasses = (color) => {
@@ -144,8 +144,8 @@ export default function DashboardNew() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="px-4 sm:px-6 lg:px-8 py-8">
+    <div className="h-full bg-gradient-to-br from-slate-50 to-blue-50 overflow-auto">
+      <div className="px-4 sm:px-6 lg:px-8 py-6">
         {/* Cabeçalho com visual jurídico */}
         <div className="mb-8 bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-800">
           <div className="flex items-center justify-between">

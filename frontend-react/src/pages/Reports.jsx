@@ -3,7 +3,7 @@ import axios from 'axios'
 import { Download, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
 
 export default function Reports() {
   const { data: overdueDeadlines } = useQuery({
@@ -34,7 +34,7 @@ export default function Reports() {
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8">
+    <div className="h-full px-4 sm:px-6 lg:px-8 py-6 overflow-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Relatórios</h1>
         <p className="mt-2 text-gray-600">Prazos vencidos e relatórios de processos</p>

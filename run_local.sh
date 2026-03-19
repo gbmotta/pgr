@@ -106,9 +106,9 @@ echo -e "${GREEN}═════════════════════
 echo -e "${GREEN}🚀 Sistema PGR - Pronto para iniciar!${NC}"
 echo -e "${GREEN}════════════════════════════════════════${NC}"
 echo ""
-echo -e "📍 Acesse em: ${GREEN}http://localhost:8000${NC}"
-echo -e "📚 Documentação API: ${GREEN}http://localhost:8000/docs${NC}"
-echo -e "🔍 Health check: ${GREEN}http://localhost:8000/health${NC}"
+echo -e "📍 Acesse em: ${GREEN}http://localhost:8001${NC}"
+echo -e "📚 Documentação API: ${GREEN}http://localhost:8001/docs${NC}"
+echo -e "🔍 Health check: ${GREEN}http://localhost:8001/health${NC}"
 if [ "$FRONTEND_AVAILABLE" = "false" ]; then
     echo -e "${YELLOW}⚠️  Frontend React não disponível (npm não encontrado)${NC}"
     echo -e "   A API estará funcionando normalmente em /docs${NC}"
@@ -123,5 +123,5 @@ echo ""
 
 # Iniciar servidor
 cd backend
-python3 -m uvicorn api_sqlalchemy:app --host 0.0.0.0 --port 8000 --reload
+python3 -m uvicorn api_sqlalchemy:app --host 0.0.0.0 --port 8001 --reload
 
