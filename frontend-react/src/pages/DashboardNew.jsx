@@ -12,8 +12,7 @@ import {
   Clock
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
+import { API_URL } from '@/lib/apiConfig'
 
 // Função para obter cor baseada na string da cor (visual jurídico profissional)
 const getColorClasses = (color) => {

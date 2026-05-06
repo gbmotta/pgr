@@ -10,8 +10,7 @@ import {
   FileText
 } from 'lucide-react'
 import DocumentChecklist from '../components/DocumentChecklist'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
+import { API_URL } from '@/lib/apiConfig'
 
 /**
  * Componente Timeline para exibir eventos do processo

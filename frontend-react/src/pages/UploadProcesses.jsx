@@ -1,21 +1,87 @@
 import { useState, useEffect } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import axios from 'axios'
-import { Upload, FileSpreadsheet, Link as LinkIcon, FileUp, Eye, AlertCircle, CheckCircle, X } from 'lucide-react'
+import { Upload, FileSpreadsheet, Link as LinkIcon, FileUp, FileDown, Grid3x3, Eye, AlertCircle, CheckCircle, X, Plus, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { API_URL } from '@/lib/apiConfig'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
+/** Mensagem legível a partir de error.response.data.detail (FastAPI). */
+function formatApiDetail(detail) {
+  if (detail == null || detail === '') return null
+  if (typeof detail === 'string') return detail
+  if (typeof detail === 'object' && typeof detail.message === 'string') return detail.message
+  if (Array.isArray(detail) && detail.length > 0) {
+    const first = detail[0]
+    if (typeof first === 'string') return first
+    if (first?.msg) return first.msg
+  }
+  return null
+}
+
+const GRID_COLUMNS = [
+  { key: 'processo_adm_1doc', title: 'PROCESSO ADM 1DOC' },
+  { key: 'processo_judicial', title: 'PROCESSO JUDICIAL' },
+  { key: 'partes', title: 'PARTES' },
+  { key: 'data_recebimento_mes_ano', title: 'DATA RECEBIMENTO (MÊS/ANO)' },
+  { key: 'tema_observacoes', title: 'TEMA – OBSERVAÇÕES' },
+  { key: 'prazo_info_estag', title: 'PRAZO INFO – ESTAG (DIA/MÊS)' },
+  { key: 'prazo_final', title: 'PRAZO FINAL (DD/MM)' },
+  { key: 'tipo_ato', title: 'TIPO DE ATO' },
+  { key: 'data_realizacao_ato', title: 'DATA REALIZAÇÃO ATO (DD/MM/YYYY)' },
+]
+
+function createEmptyGridRow() {
+  return {
+    processo_adm_1doc: '',
+    processo_judicial: '',
+    partes: '',
+    data_recebimento_mes_ano: '',
+    tema_observacoes: '',
+    prazo_info_estag: '',
+    prazo_final: '',
+    tipo_ato: '',
+    data_realizacao_ato: '',
+  }
+}
 
 export default function UploadProcesses() {
   const [file, setFile] = useState(null)
   const [dragging, setDragging] = useState(false)
   const [googleDriveLink, setGoogleDriveLink] = useState('')
-  const [uploadMode, setUploadMode] = useState('file')
+  const [uploadMode, setUploadMode] = useState('grid')
   const [previewData, setPreviewData] = useState(null)
   const [showPreview, setShowPreview] = useState(false)
   const [serviceAccountEmail, setServiceAccountEmail] = useState(null)
+  const [privacyNote, setPrivacyNote] = useState(null)
   const [loadingEmail, setLoadingEmail] = useState(false)
   const [enableAutoSync, setEnableAutoSync] = useState(true) // Monitoramento automático ativado por padrão
+  const [gridRows, setGridRows] = useState(() =>
+    Array.from({ length: 12 }, () => createEmptyGridRow())
+  )
+
+  const gridImportMutation = useMutation({
+    mutationFn: async (rows) => {
+      const response = await axios.post(`${API_URL}/api/processes/import-grid`, { rows })
+      return response.data
+    },
+    onSuccess: (data) => {
+      const imported = data.imported ?? 0
+      const skipped = data.skipped ?? 0
+      if (imported > 0) {
+        toast.success(
+          data.message ||
+            `✅ ${imported} processo(s) importado(s)${skipped > 0 ? `, ${skipped} já existiam` : ''}`
+        )
+      } else if (skipped > 0) {
+        toast.info(`ℹ️ ${skipped} linha(s) já tinham processo na sua conta. Nada de novo importado.`)
+      } else {
+        toast.error('Nenhum processo importado.')
+      }
+    },
+    onError: (error) => {
+      toast.error(formatApiDetail(error.response?.data?.detail) || 'Erro ao importar da planilha')
+    },
+  })
 
   const previewMutation = useMutation({
     mutationFn: async (file) => {
@@ -186,22 +252,24 @@ export default function UploadProcesses() {
           // Se falhar ao criar watch channel, ainda mostrar sucesso do upload
           console.error('Erro ao criar watch channel:', linkError)
           const errorDetail = linkError.response?.data?.detail
-          const errorMsg = typeof errorDetail === 'object' && errorDetail?.message
-            ? errorDetail.message.split('\n')[0]
-            : 'Não foi possível ativar monitoramento automático'
+          const errorMsg =
+            formatApiDetail(errorDetail) || 'Não foi possível ativar monitoramento automático'
           
           toast(
             `✅ ${imported} processo(s) importado(s)${skipped > 0 ? `, ${skipped} já existiam` : ''}\n` +
             `⚠️ ${errorMsg}`,
-            { duration: 8000 }
+            { duration: 12000 }
           )
         }
       } else if (enableAutoSync && !data.can_monitor) {
-        // Monitoramento ativado mas arquivo não pode ser monitorado
+        // Monitoramento pedido mas backend não ativou (conversão falhou, cota, ou tipo sem Sheets nativo)
+        const syncHint = data.conversion_warning
+          ? ' Não foi possível criar/usar Google Sheets nativo para webhook (ex.: cota do Drive da service account). Libere espaço na conta da service account ou crie uma planilha nativa (Arquivo → Novo → Planilha), copie os dados e compartilhe o novo link.'
+          : ' É necessário Google Sheets nativo no Drive ou conversão automática bem-sucedida (Excel/CSV no Drive são convertidos na conta da service account).'
         toast(
           `✅ ${imported} processo(s) importado(s)${skipped > 0 ? `, ${skipped} já existiam` : ''}\n` +
-          `ℹ️ Monitoramento automático não disponível para este tipo de arquivo.`,
-          { duration: 6000 }
+          `ℹ️ Monitoramento automático indisponível.${syncHint}`,
+          { duration: 10000 }
         )
       } else {
         if (imported > 0) {
@@ -311,7 +379,70 @@ export default function UploadProcesses() {
     uploadGoogleDriveMutation.mutate(googleDriveLink.trim())
   }
 
-  const isLoading = previewMutation.isPending || uploadFileMutation.isPending || uploadGoogleDriveMutation.isPending || previewGoogleDriveMutation.isPending
+  const isLoading =
+    previewMutation.isPending ||
+    uploadFileMutation.isPending ||
+    uploadGoogleDriveMutation.isPending ||
+    previewGoogleDriveMutation.isPending ||
+    gridImportMutation.isPending
+
+  const updateGridCell = (rowIndex, key, value) => {
+    setGridRows((prev) => {
+      const next = [...prev]
+      next[rowIndex] = { ...next[rowIndex], [key]: value }
+      return next
+    })
+  }
+
+  const addGridRow = () => {
+    setGridRows((prev) => [...prev, createEmptyGridRow()])
+  }
+
+  const removeGridRow = (rowIndex) => {
+    setGridRows((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== rowIndex)))
+  }
+
+  const clearGrid = () => {
+    setGridRows(Array.from({ length: 12 }, () => createEmptyGridRow()))
+  }
+
+  const handleGridImport = () => {
+    const hasIdentifier = gridRows.some(
+      (r) => (r.processo_adm_1doc || '').trim() || (r.processo_judicial || '').trim()
+    )
+    if (!hasIdentifier) {
+      toast.error('Preencha PROCESSO ADM 1DOC ou PROCESSO JUDICIAL em pelo menos uma linha.')
+      return
+    }
+    gridImportMutation.mutate(gridRows)
+  }
+
+  const downloadSpreadsheetTemplate = async (format, withExample = false) => {
+    try {
+      const response = await axios.get(`${API_URL}/api/processes/spreadsheet-template`, {
+        params: { format, example: withExample },
+        responseType: 'blob',
+      })
+      const name =
+        format === 'csv' ? 'PGR_modelo_processos.csv' : 'PGR_modelo_processos.xlsx'
+      const mime =
+        format === 'csv'
+          ? 'text/csv;charset=utf-8'
+          : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: mime }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = name
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success('Modelo descarregado. Preencha e envie abaixo.')
+    } catch (e) {
+      console.error(e)
+      toast.error(e.response?.data?.detail || 'Erro ao descarregar modelo')
+    }
+  }
 
   // Carregar email do Service Account quando mudar para modo Google Drive
   const loadServiceAccountEmail = async () => {
@@ -323,6 +454,7 @@ export default function UploadProcesses() {
       if (response.data?.service_account_email) {
         setServiceAccountEmail(response.data.service_account_email)
       }
+      setPrivacyNote(response.data?.privacy_note || null)
     } catch (error) {
       console.error('Erro ao carregar email do Service Account:', error)
       // Não mostrar erro ao usuário, apenas não exibir o email
@@ -331,6 +463,18 @@ export default function UploadProcesses() {
       setLoadingEmail(false)
     }
   }
+
+  // Preferência de separador (definida em Configurações)
+  useEffect(() => {
+    try {
+      const pref = localStorage.getItem('pgr_import_mode_preference')
+      if (pref === 'grid' || pref === 'file' || pref === 'google_drive') {
+        setUploadMode(pref)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
   // Carregar email quando mudar para modo Google Drive
   useEffect(() => {
@@ -344,14 +488,42 @@ export default function UploadProcesses() {
     <div className="h-full px-4 sm:px-6 lg:px-8 py-6 overflow-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Upload de Processos</h1>
-        <p className="mt-2 text-gray-600">Importe processos em lote via planilha Excel ou CSV</p>
+        <p className="mt-2 text-gray-600">
+          Preencha a planilha aqui no PGR, envie um ficheiro ou ligue o Google Sheets — os processos ficam
+          sempre associados à sua conta.
+        </p>
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 max-w-3xl">
+          <p className="font-medium text-slate-800">Privacidade e dados</p>
+          <p className="mt-1">
+            Cada conta PGR vê apenas os seus processos. No modo ficheiro, a planilha não sai do seu
+            computador até ao envio; os dados importados ficam na base do PGR. No modo Google, a
+            planilha permanece no Google Drive; a service account só acede ao que partilhar como leitor.
+          </p>
+        </div>
       </div>
 
-      <div className="max-w-4xl mx-auto">
+      <div className={`mx-auto ${uploadMode === 'grid' ? 'max-w-[90rem]' : 'max-w-4xl'}`}>
         {/* Tabs */}
         <div className="mb-6 border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
+          <nav className="-mb-px flex flex-wrap gap-x-6 gap-y-2">
             <button
+              type="button"
+              onClick={() => {
+                setUploadMode('grid')
+                setPreviewData(null)
+                setShowPreview(false)
+              }}
+              className={`${
+                uploadMode === 'grid'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
+            >
+              <Grid3x3 className="h-5 w-5" />
+              <span>Planilha no PGR</span>
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setUploadMode('file')
                 setPreviewData(null)
@@ -364,9 +536,10 @@ export default function UploadProcesses() {
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
             >
               <FileUp className="h-5 w-5" />
-              <span>Upload de Arquivo</span>
+              <span>Só ficheiro (sem Google)</span>
             </button>
             <button
+              type="button"
               onClick={() => {
                 setUploadMode('google_drive')
                 setPreviewData(null)
@@ -379,14 +552,156 @@ export default function UploadProcesses() {
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
             >
               <LinkIcon className="h-5 w-5" />
-              <span>Google Drive</span>
+              <span>Google Sheets + partilha</span>
             </button>
           </nav>
         </div>
 
+        {/* Modo: planilha editável no browser */}
+        {uploadMode === 'grid' && (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-950">
+              <p className="font-medium">Preencha as linhas como numa folha de cálculo</p>
+              <p className="mt-1 text-xs text-emerald-900/90">
+                Cada linha com <strong>PROCESSO ADM 1DOC</strong> ou <strong>PROCESSO JUDICIAL</strong> vira um
+                processo na sua conta. Pode usar as colunas opcionais (PARTES, prazos, etc.) como no modelo
+                descarregável — a ordem das colunas não importa. Linhas vazias são ignoradas.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={addGridRow}
+                disabled={isLoading}
+                className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" />
+                Adicionar linha
+              </button>
+              <button
+                type="button"
+                onClick={clearGrid}
+                disabled={isLoading}
+                className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Limpar tudo
+              </button>
+              <button
+                type="button"
+                onClick={handleGridImport}
+                disabled={isLoading}
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {gridImportMutation.isPending ? 'A importar…' : 'Importar processos para o PGR'}
+              </button>
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+              <table className="min-w-full border-collapse text-left text-xs">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-slate-100">
+                    <th className="sticky left-0 z-10 w-10 border-r border-gray-200 bg-slate-100 px-2 py-2 text-center font-semibold text-slate-600">
+                      #
+                    </th>
+                    {GRID_COLUMNS.map((col) => (
+                      <th
+                        key={col.key}
+                        className="min-w-[10rem] max-w-[14rem] whitespace-normal px-2 py-2 font-semibold text-slate-800"
+                        title={col.title}
+                      >
+                        {col.title}
+                        {(col.key === 'processo_adm_1doc' || col.key === 'processo_judicial') && (
+                          <span className="ml-0.5 text-red-600">*</span>
+                        )}
+                      </th>
+                    ))}
+                    <th className="w-12 px-1 py-2 text-center font-semibold text-slate-600"> </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gridRows.map((row, rowIndex) => (
+                    <tr key={rowIndex} className="group border-b border-gray-100 hover:bg-slate-50/80">
+                      <td className="sticky left-0 z-10 border-r border-gray-100 bg-white px-2 py-1 text-center text-slate-500 tabular-nums group-hover:bg-slate-50/80">
+                        {rowIndex + 1}
+                      </td>
+                      {GRID_COLUMNS.map((col) => (
+                        <td key={col.key} className="p-0 align-top">
+                          <input
+                            type="text"
+                            value={row[col.key] ?? ''}
+                            onChange={(e) => updateGridCell(rowIndex, col.key, e.target.value)}
+                            className="box-border w-full min-w-[8rem] border-0 bg-transparent px-2 py-1.5 text-xs text-gray-900 outline-none ring-inset focus:ring-2 focus:ring-blue-400/60"
+                            placeholder="—"
+                            disabled={isLoading}
+                            autoComplete="off"
+                          />
+                        </td>
+                      ))}
+                      <td className="px-1 py-1 text-center align-middle">
+                        <button
+                          type="button"
+                          onClick={() => removeGridRow(rowIndex)}
+                          disabled={isLoading || gridRows.length <= 1}
+                          className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-30"
+                          title="Remover linha"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* Modo: Upload de Arquivo */}
         {uploadMode === 'file' && (
           <>
+            <div className="mb-6 rounded-lg border border-indigo-200 bg-indigo-50/80 px-4 py-4">
+              <div className="flex items-start gap-3">
+                <FileDown className="h-8 w-8 text-indigo-600 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold text-indigo-950">
+                    Criar planilha a partir do modelo do PGR
+                  </h3>
+                  <p className="mt-1 text-xs text-indigo-900/90">
+                    Gere um Excel ou CSV já com os cabeçalhos corretos. Preencha as linhas no seu
+                    computador (ou copie para o Google Sheets) e use a área de envio abaixo.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => downloadSpreadsheetTemplate('xlsx', false)}
+                      disabled={isLoading}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      <FileSpreadsheet className="h-3.5 w-3.5" />
+                      Modelo vazio (.xlsx)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => downloadSpreadsheetTemplate('csv', false)}
+                      disabled={isLoading}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-indigo-300 bg-white px-3 py-1.5 text-xs font-medium text-indigo-800 hover:bg-indigo-50 disabled:opacity-50"
+                    >
+                      Modelo vazio (.csv)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => downloadSpreadsheetTemplate('xlsx', true)}
+                      disabled={isLoading}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-indigo-300 bg-white px-3 py-1.5 text-xs font-medium text-indigo-800 hover:bg-indigo-50 disabled:opacity-50"
+                    >
+                      Excel com linha de exemplo
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div
               className={`border-2 border-dashed rounded-lg p-12 text-center ${
                 dragging
@@ -566,11 +881,22 @@ export default function UploadProcesses() {
                   Importar do Google Drive
                 </h2>
                 <p className="text-sm text-gray-600">
-                  Cole o link do arquivo ou planilha do Google Drive
+                  Onboarding: (1) conta no PGR → (2) copiar email da service account abaixo → (3) partilhar a
+                  planilha no Google como <strong>Leitor</strong> com esse email → importar ou vincular o link.
                 </p>
               </div>
 
               <div className="space-y-4">
+                {privacyNote && (
+                  <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md p-3">
+                    {privacyNote}
+                  </p>
+                )}
+                <p className="text-xs text-slate-600">
+                  Quer montar a lista no Excel? Na aba <strong>Só ficheiro (sem Google)</strong> pode
+                  descarregar o modelo, ou use <strong>Planilha no PGR</strong> para preencher no browser.
+                  Depois pode copiar para o Google Sheets e partilhar o link aqui.
+                </p>
                 {/* Email do Service Account */}
                 {serviceAccountEmail && (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -782,11 +1108,32 @@ export default function UploadProcesses() {
         {/* Informações sobre formato */}
         <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
           <h3 className="text-sm font-medium text-blue-900 mb-2">Formato da planilha</h3>
-          <div className="text-sm text-blue-800 space-y-1">
-            <p><strong>Colunas obrigatórias:</strong> PROCESSO ADM 1DOC ou PROCESSO JUDICIAL</p>
-            <p><strong>Colunas opcionais:</strong> PARTES, DATA RECEBIMENTO (MÊS/ANO), TEMA – OBSERVAÇÕES, PRAZO INFO – ESTAG (DIA/MÊS), PRAZO FINAL (DD/MM), TIPO DE ATO, DATA DE REALIZAÇÃO DO ATO (DD/MM/YYYY)</p>
-            <p><strong>Formatos suportados:</strong> XLSX, XLS, CSV</p>
-            <p><strong>Ordem das colunas:</strong> Não importa - o sistema identifica por nome</p>
+          <div className="text-sm text-blue-800 space-y-3">
+            <div>
+              <p className="font-medium text-blue-900">Colunas obrigatórias</p>
+              <p className="mt-0.5">
+                Pelo menos uma: <strong>PROCESSO ADM 1DOC</strong> ou <strong>PROCESSO JUDICIAL</strong> (o
+                sistema usa o nome exato do cabeçalho).
+              </p>
+            </div>
+            <div>
+              <p className="font-medium text-blue-900">Colunas opcionais</p>
+              <ul className="mt-1 list-disc list-inside space-y-0.5">
+                <li>PARTES</li>
+                <li>DATA RECEBIMENTO (MÊS/ANO)</li>
+                <li>TEMA – OBSERVAÇÕES</li>
+                <li>PRAZO INFO – ESTAG (DIA/MÊS)</li>
+                <li>PRAZO FINAL (DD/MM)</li>
+                <li>TIPO DE ATO</li>
+                <li>DATA DE REALIZAÇÃO DO ATO (DD/MM/YYYY)</li>
+              </ul>
+            </div>
+            <p>
+              <strong>Formatos suportados:</strong> XLSX, XLS, CSV
+            </p>
+            <p>
+              <strong>Ordem das colunas:</strong> não importa — o sistema identifica pelo nome do cabeçalho.
+            </p>
           </div>
         </div>
       </div>

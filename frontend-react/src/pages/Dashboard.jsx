@@ -13,8 +13,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
+import { API_URL } from '@/lib/apiConfig'
 
 export default function Dashboard() {
   const navigate = useNavigate()

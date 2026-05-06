@@ -23,8 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
+import { API_URL } from '@/lib/apiConfig'
 
 export default function LinkedSheets() {
   const queryClient = useQueryClient()

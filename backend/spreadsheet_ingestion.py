@@ -30,6 +30,25 @@ HEADER_VARIANTS = {
 # Required headers (at least one identifier must be present)
 REQUIRED_HEADERS = ['PROCESSO ADM 1DOC', 'PROCESSO JUDICIAL']
 
+# Cabeçalhos alternativos comuns (planilhas de exemplo / exportações internas).
+# Só aplicados se o campo canônico correspondente ainda não foi mapeado.
+HEADER_FIELD_ALIAS_PAIRS: List[Tuple[str, str]] = [
+    ('PROTOCOLO', 'processo_adm_1doc'),
+    ('NUMERO PROTOCOLO', 'processo_adm_1doc'),
+    ('NÚMERO PROTOCOLO', 'processo_adm_1doc'),
+    ('NUMERO PROCESSO', 'processo_adm_1doc'),
+    ('NÚMERO PROCESSO', 'processo_adm_1doc'),
+    ('NUMERO_PROCESSO', 'processo_adm_1doc'),
+    ('NÚMERO_PROCESSO', 'processo_adm_1doc'),
+    ('REQUERENTE', 'partes'),
+    ('MATRICULA', 'applicant_registration'),
+    ('MATRÍCULA', 'applicant_registration'),
+    ('DATA CRIACAO', 'data_recebimento_mes_ano'),
+    ('DATA CRIAÇÃO', 'data_recebimento_mes_ano'),
+    ('TIPO', 'tipo_ato'),
+    ('STATUS', 'notes'),
+]
+
 
 def read_spreadsheet(file_content: bytes, filename: str, file_format: Optional[str] = None) -> pd.DataFrame:
     """
@@ -50,6 +69,9 @@ def read_spreadsheet(file_content: bytes, filename: str, file_format: Optional[s
     """
     if file_format:
         fmt = file_format.lower()
+        # Tipos do Google Drive (drive_service) → leitor pandas
+        if fmt == 'excel':
+            fmt = 'xlsx'
     else:
         fmt = _detect_format(filename, file_content)
     
@@ -71,12 +93,39 @@ def read_spreadsheet(file_content: bytes, filename: str, file_format: Optional[s
                     keep_default_na=False,
                     error_bad_lines=False
                 )
-        elif fmt in ('xlsx', 'xls', 'google_sheets'):
+        elif fmt == 'tsv':
+            try:
+                df = pd.read_csv(
+                    io.BytesIO(file_content),
+                    encoding='utf-8-sig',
+                    sep='\t',
+                    dtype=str,
+                    keep_default_na=False,
+                    on_bad_lines='skip',
+                )
+            except TypeError:
+                df = pd.read_csv(
+                    io.BytesIO(file_content),
+                    encoding='utf-8-sig',
+                    sep='\t',
+                    dtype=str,
+                    keep_default_na=False,
+                    error_bad_lines=False,
+                )
+        elif fmt == 'xls':
+            # Excel 97–2003: openpyxl não lê .xls
             df = pd.read_excel(
                 io.BytesIO(file_content),
                 dtype=str,
                 keep_default_na=False,
-                engine='openpyxl'
+                engine='xlrd',
+            )
+        elif fmt in ('xlsx', 'google_sheets'):
+            df = pd.read_excel(
+                io.BytesIO(file_content),
+                dtype=str,
+                keep_default_na=False,
+                engine='openpyxl',
             )
         else:
             raise ValueError(f"Formato não suportado: {fmt}")
@@ -163,6 +212,14 @@ def map_headers_to_canonical(df: pd.DataFrame) -> Dict[str, str]:
                     if normalized_variant in normalized_headers:
                         col_map[field_name] = normalized_headers[normalized_variant]
                         break
+
+    # Sinônimos (ex.: coluna "Protocolo" → processo_adm_1doc)
+    for alias_text, field_name in HEADER_FIELD_ALIAS_PAIRS:
+        if field_name in col_map:
+            continue
+        na = normalize_column_name(alias_text)
+        if na in normalized_headers:
+            col_map[field_name] = normalized_headers[na]
     
     return col_map
 
@@ -461,3 +518,58 @@ def preview_spreadsheet(
             f"Preview gerado com sucesso. {valid_count} linha(s) válida(s), {warning_count} aviso(s)."
         )
     }
+
+
+def template_column_headers() -> List[str]:
+    """Cabeçalhos na ordem canónica aceite pelo importador."""
+    return list(CANONICAL_HEADERS.keys())
+
+
+def build_process_spreadsheet_template(
+    file_format: str = "xlsx",
+    include_example_row: bool = False,
+) -> Tuple[bytes, str, str]:
+    """
+    Gera ficheiro vazio (ou com uma linha de exemplo) para o cliente preencher.
+
+    Args:
+        file_format: 'xlsx' ou 'csv'
+        include_example_row: Se True, inclui uma linha ilustrativa (deve apagar/alterar)
+
+    Returns:
+        (conteúdo em bytes, media_type, nome_ficheiro sugerido)
+    """
+    columns = template_column_headers()
+    rows: List[List[Any]] = []
+    if include_example_row:
+        rows.append([
+            "EXEMPLO-ADM-2026-0001",
+            "",
+            "Requerente A / Requerente B",
+            "JAN/2026",
+            "Tema ou observações resumidas",
+            "10/02",
+            "15/03",
+            "PETIÇÃO",
+            "01/02/2026",
+        ])
+    df = pd.DataFrame(rows, columns=columns)
+    buf = io.BytesIO()
+    fmt = (file_format or "xlsx").lower().strip()
+    if fmt == "csv":
+        df.to_csv(buf, index=False, encoding="utf-8-sig")
+        buf.seek(0)
+        return (
+            buf.getvalue(),
+            "text/csv; charset=utf-8",
+            "PGR_modelo_processos.csv",
+        )
+    if fmt != "xlsx":
+        raise ValueError("Formato deve ser 'xlsx' ou 'csv'")
+    df.to_excel(buf, index=False, engine="openpyxl")
+    buf.seek(0)
+    return (
+        buf.getvalue(),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "PGR_modelo_processos.xlsx",
+    )

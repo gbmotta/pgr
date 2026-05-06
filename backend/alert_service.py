@@ -66,7 +66,8 @@ class AlertService:
     def generate_alerts(
         db: Session,
         alert_window_days: int = 7,
-        min_interval_hours: int = MIN_ALERT_INTERVAL_HOURS
+        min_interval_hours: int = MIN_ALERT_INTERVAL_HOURS,
+        scoped_user=None,
     ) -> Dict[str, List[Dict]]:
         """
         Generate alerts for processes with critical deadlines.
@@ -86,7 +87,8 @@ class AlertService:
         """
         overdue, upcoming = deadline_awareness.get_critical_deadlines(
             db,
-            alert_window_days=alert_window_days
+            alert_window_days=alert_window_days,
+            scoped_user=scoped_user,
         )
         
         overdue_alerts = []

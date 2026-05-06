@@ -1,0 +1,17 @@
+.git
+.gitignore
+**/__pycache__
+**/*.pyc
+**/*.pyo
+.env
+.env.*
+frontend-react/node_modules
+frontend-react/dist
+frontend-react/.vite
+frontend-dist
+data/*.db
+uploads
+reports
+credentials
+*.md
+!README.md

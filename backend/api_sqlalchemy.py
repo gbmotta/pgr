@@ -25,9 +25,9 @@ Data: Dezembro 2025
 """
 from fastapi import FastAPI, HTTPException, Depends, Query, UploadFile, File, Form, Request, Header
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import date, timedelta, datetime
@@ -36,6 +36,11 @@ import os
 import json
 import pandas as pd
 import io
+from dotenv import load_dotenv
+
+_pgr_env = Path(__file__).resolve().parent.parent / ".env"
+if _pgr_env.is_file():
+    load_dotenv(_pgr_env)
 
 # Importar models - funciona tanto como módulo quanto como pacote
 try:
@@ -73,7 +78,6 @@ uploads_path.mkdir(exist_ok=True)
 
 # Em produção, o React será buildado e servido aqui
 frontend_dist_path = Path(__file__).parent.parent / "frontend-dist"
-frontend_old_path = Path(__file__).parent.parent / "frontend"
 
 # Servir assets estáticos do React
 if frontend_dist_path.exists() and (frontend_dist_path / "assets").exists():
@@ -82,10 +86,6 @@ if frontend_dist_path.exists() and (frontend_dist_path / "assets").exists():
 # Servir frontend React completo (para SPA routing)
 if frontend_dist_path.exists():
     app.mount("/static", StaticFiles(directory=str(frontend_dist_path)), name="static")
-
-# Fallback para frontend antigo
-if frontend_old_path.exists():
-    app.mount("/pgr", StaticFiles(directory=str(frontend_old_path), html=True), name="pgr")
 
 # Importar utilitários e auth
 try:
@@ -125,6 +125,16 @@ class UserResponseSchema(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class UserProfileUpdateSchema(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+
+class PasswordChangeSchema(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=200)
 
 
 class LoginSchema(BaseModel):
@@ -172,6 +182,23 @@ class ProcessCreateSchema(BaseModel):
     created_date: Optional[str] = None
     status_code: str = "RECEBIDO"
     notes: Optional[str] = None
+
+
+class ProcessGridRowSchema(BaseModel):
+    """Uma linha da planilha editável no frontend (sem ficheiro)."""
+    processo_adm_1doc: Optional[str] = None
+    processo_judicial: Optional[str] = None
+    partes: Optional[str] = None
+    data_recebimento_mes_ano: Optional[str] = None
+    tema_observacoes: Optional[str] = None
+    prazo_info_estag: Optional[str] = None
+    prazo_final: Optional[str] = None
+    tipo_ato: Optional[str] = None
+    data_realizacao_ato: Optional[str] = None
+
+
+class ProcessGridImportSchema(BaseModel):
+    rows: List[ProcessGridRowSchema]
 
 
 class ProcessResponseSchema(BaseModel):
@@ -232,6 +259,51 @@ def get_db():
         yield db  # Injeta a sessão no endpoint
     finally:
         db.close()  # Fecha a sessão após a requisição
+
+
+# ============ Multi-tenant (isolamento por utilizador) ============
+
+def scope_process_query(query, user):
+    """Restringe uma query de Process ao dono, exceto administradores."""
+    if user is None:
+        return query
+    if getattr(user, "is_admin", False):
+        return query
+    return query.filter(models.Process.owner_user_id == user.id)
+
+
+def scope_linked_sheet_query(query, user):
+    """Restringe linked_sheets ao utilizador que vinculou, exceto admins."""
+    if user is None:
+        return query
+    if getattr(user, "is_admin", False):
+        return query
+    return query.filter(models.LinkedSheet.owner_user_id == user.id)
+
+
+def user_can_access_process(process: models.Process, user) -> bool:
+    if user is None:
+        return False
+    if getattr(user, "is_admin", False):
+        return True
+    return process.owner_user_id == user.id
+
+
+def get_process_for_user(db: Session, user, protocol: str) -> models.Process:
+    """Resolve processo por protocolo / ADM 1DOC / judicial, com isolamento por conta."""
+    q = db.query(models.Process).filter(
+        (models.Process.protocol_number == protocol)
+        | (models.Process.processo_adm_1doc == protocol)
+        | (models.Process.processo_judicial == protocol)
+    )
+    q = scope_process_query(q, user)
+    proc = q.first()
+    if not proc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Processo não encontrado: {protocol}",
+        )
+    return proc
 
 
 # ============ Funções Auxiliares ============
@@ -400,13 +472,6 @@ def root():
                 str(frontend_dist_path / "index.html"),
                 media_type="text/html"
             )
-        
-        # Fallback para frontend antigo
-        if frontend_old_path.exists() and (frontend_old_path / "index.html").exists():
-            return FileResponse(
-                str(frontend_old_path / "index.html"),
-                media_type="text/html"
-            )
     except Exception as e:
         import logging
         logging.warning(f"Erro ao servir frontend: {e}")
@@ -445,7 +510,11 @@ def health_check():
 
 
 @app.post("/processes", status_code=201, response_model=ProcessResponseSchema)
-def create_process(payload: ProcessCreateSchema, db: Session = Depends(get_db)):
+def create_process(
+    payload: ProcessCreateSchema,
+    db: Session = Depends(get_db),
+    current_user=Depends(auth.get_current_active_user),
+):
     """
     Cadastra um novo processo administrativo.
     
@@ -499,22 +568,24 @@ def create_process(payload: ProcessCreateSchema, db: Session = Depends(get_db)):
             detail="É necessário fornecer PROCESSO ADM 1DOC ou PROCESSO JUDICIAL"
         )
     
-    # 4. Verificar se algum ID de processo já existe
+    # 4. Verificar se algum ID de processo já existe (no âmbito deste utilizador)
     if payload.processo_adm_1doc:
-        existing = db.query(models.Process).filter(
+        q = db.query(models.Process).filter(
             models.Process.processo_adm_1doc == payload.processo_adm_1doc
-        ).first()
-        if existing:
+        )
+        q = scope_process_query(q, current_user)
+        if q.first():
             raise HTTPException(
                 status_code=409,
                 detail=f"PROCESSO ADM 1DOC já existe: {payload.processo_adm_1doc}"
             )
     
     if payload.processo_judicial:
-        existing = db.query(models.Process).filter(
+        q = db.query(models.Process).filter(
             models.Process.processo_judicial == payload.processo_judicial
-        ).first()
-        if existing:
+        )
+        q = scope_process_query(q, current_user)
+        if q.first():
             raise HTTPException(
                 status_code=409,
                 detail=f"PROCESSO JUDICIAL já existe: {payload.processo_judicial}"
@@ -522,10 +593,11 @@ def create_process(payload: ProcessCreateSchema, db: Session = Depends(get_db)):
     
     # Verificar protocol_number se fornecido (legado)
     if payload.protocol_number:
-        existing = db.query(models.Process).filter(
+        q = db.query(models.Process).filter(
             models.Process.protocol_number == payload.protocol_number
-        ).first()
-        if existing:
+        )
+        q = scope_process_query(q, current_user)
+        if q.first():
             raise HTTPException(
                 status_code=409,
                 detail=f"Protocolo já existe: {payload.protocol_number}"
@@ -538,7 +610,8 @@ def create_process(payload: ProcessCreateSchema, db: Session = Depends(get_db)):
     protocol_number = payload.protocol_number
     if not protocol_number:
         identifier = payload.processo_adm_1doc or payload.processo_judicial
-        protocol_number = identifier or f"PGR-{date.today().year}-{db.query(models.Process).count() + 1:04d}"
+        n = scope_process_query(db.query(models.Process), current_user).count()
+        protocol_number = identifier or f"PGR-{date.today().year}-{n + 1:04d}"
     
     # 7. Criar o processo (campos DOCX como primários)
     new_process = models.Process(
@@ -559,7 +632,8 @@ def create_process(payload: ProcessCreateSchema, db: Session = Depends(get_db)):
         applicant_registration=payload.applicant_registration,
         created_date=created_date,
         status_id=status.id if status else None,
-        notes=payload.notes
+        notes=payload.notes,
+        owner_user_id=current_user.id,
     )
     
     db.add(new_process)
@@ -589,7 +663,7 @@ def create_process(payload: ProcessCreateSchema, db: Session = Depends(get_db)):
         process_id=new_process.id,
         process_data=process_data_dict,
         change_source='api',
-        changed_by_user_id=None  # TODO: get from auth context
+        changed_by_user_id=current_user.id,
     )
     
     # 9. Gerar checklist de documentos (apenas se tiver tipo)
@@ -631,7 +705,8 @@ def create_process(payload: ProcessCreateSchema, db: Session = Depends(get_db)):
 def list_processes(
     type_code: Optional[str] = Query(None, description="Filtrar por tipo de processo"),
     status_code: Optional[str] = Query(None, description="Filtrar por status"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(auth.get_current_active_user),
 ):
     """
     Lista todos os processos com filtros opcionais.
@@ -645,7 +720,7 @@ def list_processes(
         Lista de processos
     """
     # Query base - sem JOIN obrigatório porque type_id e status_id podem ser None
-    query = db.query(models.Process)
+    query = scope_process_query(db.query(models.Process), current_user)
     
     # Aplicar filtros se fornecidos (com LEFT JOIN)
     if type_code:
@@ -697,7 +772,11 @@ def list_processes(
 
 
 @app.get("/processes/{protocol}")
-def get_process_details(protocol: str, db: Session = Depends(get_db)):
+def get_process_details(
+    protocol: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(auth.get_current_active_user),
+):
     """
     Busca detalhes completos de um processo incluindo checklist e prazos.
     
@@ -711,16 +790,7 @@ def get_process_details(protocol: str, db: Session = Depends(get_db)):
     Raises:
         HTTPException 404: Processo não encontrado
     """
-    # Buscar processo com relacionamentos
-    process = db.query(models.Process).filter(
-        models.Process.protocol_number == protocol
-    ).first()
-    
-    if not process:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Processo não encontrado: {protocol}"
-        )
+    process = get_process_for_user(db, current_user, protocol)
     
     # Montar resposta completa
     return {
@@ -778,7 +848,11 @@ def get_process_details(protocol: str, db: Session = Depends(get_db)):
 
 
 @app.delete("/processes/{protocol}")
-def delete_process(protocol: str, db: Session = Depends(get_db)):
+def delete_process(
+    protocol: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(auth.get_current_active_user),
+):
     """
     Deleta um processo pelo número do protocolo.
     
@@ -792,15 +866,7 @@ def delete_process(protocol: str, db: Session = Depends(get_db)):
     Raises:
         HTTPException 404: Processo não encontrado
     """
-    process = db.query(models.Process).filter(
-        models.Process.protocol_number == protocol
-    ).first()
-    
-    if not process:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Processo não encontrado: {protocol}"
-        )
+    process = get_process_for_user(db, current_user, protocol)
     
     db.delete(process)
     db.commit()
@@ -814,7 +880,8 @@ def delete_process(protocol: str, db: Session = Depends(get_db)):
 @app.post("/processes/bulk-delete")
 def bulk_delete_processes(
     protocols: List[str],
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(auth.get_current_active_user),
 ):
     """
     Deleta múltiplos processos em lote.
@@ -830,14 +897,11 @@ def bulk_delete_processes(
     not_found = []
     
     for protocol in protocols:
-        process = db.query(models.Process).filter(
-            models.Process.protocol_number == protocol
-        ).first()
-        
-        if process:
+        try:
+            process = get_process_for_user(db, current_user, protocol)
             db.delete(process)
             deleted += 1
-        else:
+        except HTTPException:
             not_found.append(protocol)
     
     db.commit()
@@ -853,7 +917,8 @@ def bulk_delete_processes(
 @app.post("/processes/bulk-delete-pattern")
 def bulk_delete_by_pattern(
     pattern: str = Query(..., description="Padrão do protocolo (ex: PGR-2025-08%)"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(auth.get_current_active_user),
 ):
     """
     Deleta processos que correspondem a um padrão SQL LIKE.
@@ -870,8 +935,8 @@ def bulk_delete_by_pattern(
         - PGR-2025-%: Deleta todos os processos de 2025
         - %TEST%: Deleta processos com TEST no protocolo
     """
-    # Buscar processos que correspondem ao padrão
-    processes = db.query(models.Process).filter(
+    # Buscar processos que correspondem ao padrão (apenas os seus, salvo admin)
+    processes = scope_process_query(db.query(models.Process), current_user).filter(
         models.Process.protocol_number.like(pattern)
     ).all()
     
@@ -885,8 +950,8 @@ def bulk_delete_by_pattern(
     # Coletar protocolos antes de deletar
     deleted_protocols = [p.protocol_number for p in processes]
     
-    # Deletar todos
-    db.query(models.Process).filter(
+    # Deletar todos (mesmo âmbito da listagem)
+    scope_process_query(db.query(models.Process), current_user).filter(
         models.Process.protocol_number.like(pattern)
     ).delete(synchronize_session=False)
     
@@ -901,7 +966,10 @@ def bulk_delete_by_pattern(
 
 
 @app.get("/deadlines/overdue", response_model=List[DeadlineResponseSchema])
-def list_overdue_deadlines(db: Session = Depends(get_db)):
+def list_overdue_deadlines(
+    db: Session = Depends(get_db),
+    current_user=Depends(auth.get_current_active_user),
+):
     """
     Lista todos os prazos vencidos (não fechados).
     
@@ -918,7 +986,7 @@ def list_overdue_deadlines(db: Session = Depends(get_db)):
     today = date.today()
     
     # Query com joins para pegar informações relacionadas
-    overdue = db.query(models.ProcessDeadline).join(
+    overdue_q = db.query(models.ProcessDeadline).join(
         models.Process
     ).join(
         models.ProcessType
@@ -927,7 +995,10 @@ def list_overdue_deadlines(db: Session = Depends(get_db)):
     ).filter(
         models.ProcessDeadline.closed.is_(False),  # Apenas não fechados
         models.ProcessDeadline.due_date < today  # Vencidos
-    ).order_by(
+    )
+    if not current_user.is_admin:
+        overdue_q = overdue_q.filter(models.Process.owner_user_id == current_user.id)
+    overdue = overdue_q.order_by(
         models.ProcessDeadline.due_date.asc()  # Mais antigos primeiro
     ).all()
     
@@ -965,7 +1036,8 @@ def get_processes_deadline_status(
     processes = deadline_awareness.get_processes_with_deadline_status(
         db,
         alert_window_days=alert_window_days,
-        include_ok=include_ok
+        include_ok=include_ok,
+        scoped_user=current_user,
     )
     
     return {
@@ -990,7 +1062,8 @@ def get_critical_deadlines(
     
     overdue, upcoming = deadline_awareness.get_critical_deadlines(
         db,
-        alert_window_days=alert_window_days
+        alert_window_days=alert_window_days,
+        scoped_user=current_user,
     )
     
     return {
@@ -1024,7 +1097,8 @@ def get_deadline_alerts(
     alerts = alert_service.AlertService.generate_alerts(
         db,
         alert_window_days=alert_window_days,
-        min_interval_hours=min_interval_hours
+        min_interval_hours=min_interval_hours,
+        scoped_user=current_user,
     )
     
     return {
@@ -1052,7 +1126,7 @@ def get_process_history(
     import json
     
     process = db.query(models.Process).filter(models.Process.id == process_id).first()
-    if not process:
+    if not process or not user_can_access_process(process, current_user):
         raise HTTPException(status_code=404, detail="Processo não encontrado")
     
     history = audit_service.AuditService.get_process_history(
@@ -1105,7 +1179,7 @@ def get_field_history(
     import json
     
     process = db.query(models.Process).filter(models.Process.id == process_id).first()
-    if not process:
+    if not process or not user_can_access_process(process, current_user):
         raise HTTPException(status_code=404, detail="Processo não encontrado")
     
     history = audit_service.AuditService.get_field_history(
@@ -1162,7 +1236,7 @@ def get_process_insights(
     from backend import ai_insights
     
     process = db.query(models.Process).filter(models.Process.id == process_id).first()
-    if not process:
+    if not process or not user_can_access_process(process, current_user):
         raise HTTPException(status_code=404, detail="Processo não encontrado")
     
     insights = ai_insights.AIInsightsService.get_process_insights(
@@ -1189,7 +1263,7 @@ def get_prioritization_suggestion(
     from backend import ai_insights
     
     process = db.query(models.Process).filter(models.Process.id == process_id).first()
-    if not process:
+    if not process or not user_can_access_process(process, current_user):
         raise HTTPException(status_code=404, detail="Processo não encontrado")
     
     suggestion = ai_insights.AIInsightsService.suggest_prioritization(
@@ -1213,7 +1287,7 @@ def get_risk_flags(
     from backend import ai_insights
     
     process = db.query(models.Process).filter(models.Process.id == process_id).first()
-    if not process:
+    if not process or not user_can_access_process(process, current_user):
         raise HTTPException(status_code=404, detail="Processo não encontrado")
     
     risks = ai_insights.AIInsightsService.flag_potential_risks(
@@ -1248,8 +1322,9 @@ def summarize_text(
 
 @app.get("/deadlines/upcoming")
 def list_upcoming_deadlines(
-    days: int = Query(7, ge=1, le=90, description="Quantidade de dias à frente"),
-    db: Session = Depends(get_db)
+    days: int = Query(7, ge=1, le=400, description="Quantidade de dias à frente (até ~13 meses para calendário)"),
+    db: Session = Depends(get_db),
+    current_user=Depends(auth.get_current_active_user),
 ):
     """
     Lista prazos próximos do vencimento.
@@ -1265,7 +1340,7 @@ def list_upcoming_deadlines(
     end_date = today + timedelta(days=days)
     
     # Query prazos no intervalo
-    upcoming = db.query(models.ProcessDeadline).join(
+    up_q = db.query(models.ProcessDeadline).join(
         models.Process
     ).join(
         models.ProcessType
@@ -1275,7 +1350,10 @@ def list_upcoming_deadlines(
         models.ProcessDeadline.closed.is_(False),
         models.ProcessDeadline.due_date >= today,
         models.ProcessDeadline.due_date <= end_date
-    ).order_by(
+    )
+    if not current_user.is_admin:
+        up_q = up_q.filter(models.Process.owner_user_id == current_user.id)
+    upcoming = up_q.order_by(
         models.ProcessDeadline.due_date.asc()
     ).all()
     
@@ -1297,30 +1375,37 @@ def list_upcoming_deadlines(
 
 
 @app.get("/statistics/summary")
-def get_statistics(db: Session = Depends(get_db)):
+def get_statistics(
+    db: Session = Depends(get_db),
+    current_user=Depends(auth.get_current_active_user),
+):
     """
     Retorna estatísticas gerais do sistema.
     
     Returns:
         Resumo com contadores
     """
-    total_processes = db.query(models.Process).count()
+    proc_q = scope_process_query(db.query(models.Process), current_user)
+    total_processes = proc_q.count()
     
     # Contar por status
     by_status = {}
     statuses = db.query(models.Status).all()
     for status in statuses:
-        count = db.query(models.Process).filter(
+        count = scope_process_query(db.query(models.Process), current_user).filter(
             models.Process.status_id == status.id
         ).count()
         by_status[status.code] = count
     
     # Contar prazos vencidos
     today = date.today()
-    overdue_count = db.query(models.ProcessDeadline).filter(
+    oq = db.query(models.ProcessDeadline).join(models.Process).filter(
         models.ProcessDeadline.closed.is_(False),
         models.ProcessDeadline.due_date < today
-    ).count()
+    )
+    if not current_user.is_admin:
+        oq = oq.filter(models.Process.owner_user_id == current_user.id)
+    overdue_count = oq.count()
     
     return {
         "total_processes": total_processes,
@@ -1331,7 +1416,10 @@ def get_statistics(db: Session = Depends(get_db)):
 
 
 @app.get("/api/stats")
-def get_performance_stats(db: Session = Depends(get_db)):
+def get_performance_stats(
+    db: Session = Depends(get_db),
+    current_user=Depends(auth.get_current_active_user),
+):
     """
     Retorna estatísticas de performance para o dashboard.
     
@@ -1347,7 +1435,7 @@ def get_performance_stats(db: Session = Depends(get_db)):
     from collections import defaultdict
     
     today = date.today()
-    all_processes = db.query(models.Process).all()
+    all_processes = scope_process_query(db.query(models.Process), current_user).all()
     
     total_processos = len(all_processes)
     
@@ -1463,15 +1551,16 @@ def register(user_data: UserCreateSchema, db: Session = Depends(get_db)):
             detail="Username ou email já existe"
         )
     
-    # Criar usuário
+    # Criar usuário (primeira conta no sistema torna-se administrador)
     hashed_password = auth.get_password_hash(user_data.password)
+    is_first_user = db.query(models.User).count() == 0
     new_user = models.User(
         username=user_data.username,
         email=user_data.email,
         hashed_password=hashed_password,
         full_name=user_data.full_name,
         is_active=True,
-        is_admin=False
+        is_admin=is_first_user,
     )
     db.add(new_user)
     db.commit()
@@ -1527,7 +1616,214 @@ def get_current_user_info(current_user = Depends(auth.get_current_active_user)):
     return UserResponseSchema.model_validate(current_user)
 
 
+@app.patch("/api/auth/profile", response_model=UserResponseSchema)
+def update_user_profile(
+    payload: UserProfileUpdateSchema,
+    db: Session = Depends(get_db),
+    current_user=Depends(auth.get_current_active_user),
+):
+    """Atualiza nome e email do utilizador autenticado."""
+    data = payload.model_dump(exclude_unset=True)
+    if not data:
+        raise HTTPException(status_code=400, detail="Nenhum campo para atualizar.")
+    user = db.query(models.User).filter(models.User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilizador não encontrado.")
+    if "email" in data:
+        new_email = data["email"]
+        if new_email != user.email:
+            taken = (
+                db.query(models.User)
+                .filter(models.User.email == new_email, models.User.id != user.id)
+                .first()
+            )
+            if taken:
+                raise HTTPException(status_code=400, detail="Este email já está em uso.")
+            user.email = new_email
+    if "full_name" in data:
+        fn = data["full_name"]
+        user.full_name = (fn.strip() if isinstance(fn, str) and fn.strip() else None)
+    db.commit()
+    db.refresh(user)
+    return UserResponseSchema.model_validate(user)
+
+
+@app.post("/api/auth/change-password")
+def change_user_password(
+    payload: PasswordChangeSchema,
+    db: Session = Depends(get_db),
+    current_user=Depends(auth.get_current_active_user),
+):
+    """Altera a palavra-passe (exige a atual)."""
+    user = db.query(models.User).filter(models.User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilizador não encontrado.")
+    if not auth.verify_password(payload.current_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Palavra-passe atual incorreta.")
+    user.hashed_password = auth.get_password_hash(payload.new_password)
+    db.commit()
+    return {"message": "Palavra-passe atualizada com sucesso."}
+
+
 # ============ Endpoints de Upload ============
+
+@app.get("/api/processes/spreadsheet-template")
+def download_spreadsheet_template(
+    template_format: str = Query(
+        "xlsx",
+        alias="format",
+        description="xlsx ou csv",
+        pattern="^(xlsx|csv)$",
+    ),
+    example: bool = Query(
+        False,
+        description="Incluir uma linha de exemplo (apagar ou substituir antes de importar em produção)",
+    ),
+    current_user=Depends(auth.get_current_active_user),
+):
+    """
+    Descarrega um modelo de planilha com os cabeçalhos esperados pelo PGR.
+    O cliente pode criar a própria lista de processos neste ficheiro e depois usar o upload.
+    """
+    try:
+        from backend import spreadsheet_ingestion
+    except ImportError:
+        import spreadsheet_ingestion
+    try:
+        content, media_type, filename = spreadsheet_ingestion.build_process_spreadsheet_template(
+            file_format=template_format,
+            include_example_row=example,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
+GRID_IMPORT_MAX_ROWS = 500
+
+
+def _strip_optional(s: Optional[str]) -> Optional[str]:
+    if s is None:
+        return None
+    t = str(s).strip()
+    return t if t else None
+
+
+@app.post("/api/processes/import-grid")
+def import_processes_from_grid(
+    payload: ProcessGridImportSchema,
+    db: Session = Depends(get_db),
+    current_user=Depends(auth.get_current_active_user),
+):
+    """
+    Importa processos a partir de linhas preenchidas na grelha do próprio PGR
+    (sem upload de ficheiro). Cada processo fica associado ao utilizador autenticado.
+    """
+    if len(payload.rows) > GRID_IMPORT_MAX_ROWS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No máximo {GRID_IMPORT_MAX_ROWS} linhas por envio.",
+        )
+
+    imported = 0
+    skipped = 0
+
+    for idx, row in enumerate(payload.rows):
+        processo_adm_1doc = _strip_optional(row.processo_adm_1doc)
+        processo_judicial = _strip_optional(row.processo_judicial)
+        partes = _strip_optional(row.partes)
+        data_recebimento_mes_ano = _strip_optional(row.data_recebimento_mes_ano)
+        tema_observacoes = _strip_optional(row.tema_observacoes)
+        prazo_info_estag = _strip_optional(row.prazo_info_estag)
+        prazo_final = _strip_optional(row.prazo_final)
+        tipo_ato = _strip_optional(row.tipo_ato)
+        data_realizacao_ato = _strip_optional(row.data_realizacao_ato)
+
+        if not processo_adm_1doc and not processo_judicial:
+            continue
+
+        process_data = {
+            "processo_adm_1doc": processo_adm_1doc,
+            "processo_judicial": processo_judicial,
+            "partes": partes,
+            "data_recebimento_mes_ano": data_recebimento_mes_ano,
+            "tema_observacoes": tema_observacoes,
+            "prazo_info_estag": prazo_info_estag,
+            "prazo_final": prazo_final,
+            "tipo_ato": tipo_ato,
+            "data_realizacao_ato": data_realizacao_ato,
+        }
+
+        existing = None
+        if processo_adm_1doc:
+            q = db.query(models.Process).filter(
+                models.Process.processo_adm_1doc == processo_adm_1doc
+            )
+            existing = scope_process_query(q, current_user).first()
+        if not existing and processo_judicial:
+            q = db.query(models.Process).filter(
+                models.Process.processo_judicial == processo_judicial
+            )
+            existing = scope_process_query(q, current_user).first()
+
+        if existing:
+            skipped += 1
+            continue
+
+        identifier = processo_adm_1doc or processo_judicial
+        new_process = models.Process(
+            processo_adm_1doc=processo_adm_1doc,
+            processo_judicial=processo_judicial,
+            partes=partes,
+            tema_observacoes=tema_observacoes,
+            data_recebimento_mes_ano=data_recebimento_mes_ano,
+            prazo_info_estag=prazo_info_estag,
+            prazo_final=prazo_final,
+            tipo_ato=tipo_ato,
+            data_realizacao_ato=data_realizacao_ato,
+            protocol_number=identifier,
+            created_date=date.today(),
+            owner_user_id=current_user.id,
+        )
+        db.add(new_process)
+        db.flush()
+
+        try:
+            from backend import audit_service
+            audit_service.AuditService.record_process_creation(
+                db=db,
+                process_id=new_process.id,
+                process_data=process_data,
+                change_source="grid",
+                source_details={"row_index": idx + 1, "origin": "pgr_spreadsheet"},
+                changed_by_user_id=current_user.id,
+            )
+        except Exception as e:
+            import logging
+            logging.error("Erro ao registrar auditoria (grid): %s", e)
+
+        imported += 1
+
+    db.commit()
+
+    if imported == 0 and skipped == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Nenhuma linha válida: preencha PROCESSO ADM 1DOC ou PROCESSO JUDICIAL em pelo menos uma linha.",
+        )
+
+    return {
+        "imported": imported,
+        "skipped": skipped,
+        "message": f"{imported} processo(s) importado(s), {skipped} ignorado(s) (já existiam na sua conta).",
+    }
+
 
 @app.post("/api/processes/preview-upload")
 async def preview_upload_excel(
@@ -1800,13 +2096,15 @@ async def upload_excel(
             
             existing = None
             if processo_adm_1doc:
-                existing = db.query(models.Process).filter(
+                q = db.query(models.Process).filter(
                     models.Process.processo_adm_1doc == processo_adm_1doc
-                ).first()
+                )
+                existing = scope_process_query(q, current_user).first()
             if not existing and processo_judicial:
-                existing = db.query(models.Process).filter(
+                q = db.query(models.Process).filter(
                     models.Process.processo_judicial == processo_judicial
-                ).first()
+                )
+                existing = scope_process_query(q, current_user).first()
             
             if existing:
                 skipped += 1
@@ -1822,8 +2120,11 @@ async def upload_excel(
                 prazo_final=process_data.get('prazo_final'),
                 tipo_ato=process_data.get('tipo_ato'),
                 data_realizacao_ato=process_data.get('data_realizacao_ato'),
+                applicant_registration=process_data.get('applicant_registration'),
+                notes=process_data.get('notes'),
                 protocol_number=identifier,
-                created_date=date.today()
+                created_date=date.today(),
+                owner_user_id=current_user.id,
             )
             db.add(new_process)
             db.flush()
@@ -1857,41 +2158,13 @@ async def upload_excel(
     
     db.commit()
     
-    # Preparar resposta
-    response_data = {
+    return {
         "imported": imported,
         "skipped": skipped,
         "errors": errors[:10],
         "total_errors": len(errors),
-        "message": f"Importação concluída: {imported} processo(s) importado(s), {skipped} ignorado(s)."
+        "message": f"Importação concluída: {imported} processo(s) importado(s), {skipped} ignorado(s).",
     }
-    
-    # Se foi convertido para Google Sheets ou já é Google Sheets nativo, incluir informações para monitoramento
-    if file_type == 'google_sheets' and file_id:
-        response_data["file_id"] = file_id
-        response_data["file_name"] = file_name
-        response_data["can_monitor"] = True
-        # Se foi convertido, incluir o link do Google Sheets criado
-        if converted_to_sheets:
-            try:
-                drive_service_obj = drive_service.get_drive_service()
-                file_metadata = drive_service_obj.files().get(
-                    fileId=file_id,
-                    fields='webViewLink'
-                ).execute()
-                response_data["google_sheets_url"] = file_metadata.get('webViewLink')
-                response_data["converted_to_sheets"] = True
-            except Exception:
-                # Se não conseguir obter o link, não é crítico
-                pass
-    elif conversion_error:
-        response_data["conversion_warning"] = (
-            f"Não foi possível converter para Google Sheets: {conversion_error}. "
-            "O arquivo foi importado, mas não será possível monitorar alterações automaticamente."
-        )
-        response_data["can_monitor"] = False
-    
-    return response_data
 
 
 @app.post("/processos/upload")
@@ -1903,15 +2176,10 @@ async def upload_processos(
     """
     Upload e importação de processos via planilha Excel ou CSV.
     
-    Requisitos:
-    - O arquivo deve conter as colunas obrigatórias: 'numero_processo' e 'prazo_final'
-    - Suporta formatos: .xlsx, .xls, .csv
-    
-    Mapeamento de colunas:
-    - numero_processo -> processo_adm_1doc (ou protocol_number)
-    - prazo_final -> prazo_final (formato DD/MM)
-    - partes -> partes (opcional)
-    - Outras colunas serão mapeadas conforme disponibilidade
+    Legado: espera colunas em minúsculas `numero_processo` e `prazo_final` após normalização.
+    Para o formato canónico (PROCESSO ADM 1DOC / PROCESSO JUDICIAL, etc.), use as rotas de
+    importação principais que passam por `spreadsheet_ingestion`.
+    Suporta: .xlsx, .xls, .csv
     """
     # Validar tipo de arquivo
     filename = file.filename or "upload.xlsx"
@@ -1945,13 +2213,19 @@ async def upload_processos(
                     dtype=str,
                     keep_default_na=False
                 )
-        else:
-            # Excel (.xlsx, .xls)
+        elif file_extension == 'xls':
             df = pd.read_excel(
                 io.BytesIO(contents),
                 dtype=str,
                 keep_default_na=False,
-                engine='openpyxl'
+                engine='xlrd',
+            )
+        else:
+            df = pd.read_excel(
+                io.BytesIO(contents),
+                dtype=str,
+                keep_default_na=False,
+                engine='openpyxl',
             )
     except Exception as e:
         raise HTTPException(
@@ -2007,16 +2281,17 @@ async def upload_processos(
                 })
                 continue
             
-            # Verificar se o processo já existe
-            existing = db.query(models.Process).filter(
+            # Verificar se o processo já existe (nesta conta)
+            q1 = db.query(models.Process).filter(
                 models.Process.processo_adm_1doc == numero_processo
-            ).first()
+            )
+            existing = scope_process_query(q1, current_user).first()
             
             if not existing:
-                # Tentar também por protocol_number
-                existing = db.query(models.Process).filter(
+                q2 = db.query(models.Process).filter(
                     models.Process.protocol_number == numero_processo
-                ).first()
+                )
+                existing = scope_process_query(q2, current_user).first()
             
             if existing:
                 skipped += 1
@@ -2028,7 +2303,8 @@ async def upload_processos(
                 protocol_number=numero_processo,
                 prazo_final=prazo_final,
                 partes=partes,
-                created_date=date.today()
+                created_date=date.today(),
+                owner_user_id=current_user.id,
             )
             
             # Mapear outras colunas opcionais se existirem
@@ -2230,13 +2506,15 @@ async def upload_from_google_drive(
             
             existing = None
             if processo_adm_1doc:
-                existing = db.query(models.Process).filter(
+                q = db.query(models.Process).filter(
                     models.Process.processo_adm_1doc == processo_adm_1doc
-                ).first()
+                )
+                existing = scope_process_query(q, current_user).first()
             if not existing and processo_judicial:
-                existing = db.query(models.Process).filter(
+                q = db.query(models.Process).filter(
                     models.Process.processo_judicial == processo_judicial
-                ).first()
+                )
+                existing = scope_process_query(q, current_user).first()
             
             if existing:
                 skipped += 1
@@ -2252,8 +2530,11 @@ async def upload_from_google_drive(
                 prazo_final=process_data.get('prazo_final'),
                 tipo_ato=process_data.get('tipo_ato'),
                 data_realizacao_ato=process_data.get('data_realizacao_ato'),
+                applicant_registration=process_data.get('applicant_registration'),
+                notes=process_data.get('notes'),
                 protocol_number=identifier,
-                created_date=date.today()
+                created_date=date.today(),
+                owner_user_id=current_user.id,
             )
             db.add(new_process)
             db.flush()
@@ -2342,13 +2623,7 @@ def update_document_checklist(
     Returns:
         Status atualizado do documento
     """
-    # Buscar processo
-    process = db.query(models.Process).filter(
-        models.Process.protocol_number == protocol
-    ).first()
-    
-    if not process:
-        raise HTTPException(status_code=404, detail="Processo não encontrado")
+    process = get_process_for_user(db, current_user, protocol)
     
     # Buscar documento
     document = db.query(models.Document).filter(
@@ -2403,12 +2678,7 @@ async def upload_document(
     current_user = Depends(auth.get_current_active_user)
 ):
     """Upload de documento anexo a um processo."""
-    process = db.query(models.Process).filter(
-        models.Process.protocol_number == protocol
-    ).first()
-    
-    if not process:
-        raise HTTPException(status_code=404, detail="Processo não encontrado")
+    process = get_process_for_user(db, current_user, protocol)
     
     # Salvar arquivo
     file_path, file_size = await utils.save_upload_file(file, process.id)
@@ -2461,15 +2731,11 @@ async def upload_document(
 @app.get("/api/processes/{protocol}/attachments")
 def list_attachments(
     protocol: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(auth.get_current_active_user),
 ):
     """Lista anexos de um processo."""
-    process = db.query(models.Process).filter(
-        models.Process.protocol_number == protocol
-    ).first()
-    
-    if not process:
-        raise HTTPException(status_code=404, detail="Processo não encontrado")
+    process = get_process_for_user(db, current_user, protocol)
     
     attachments = db.query(models.DocumentAttachment).filter(
         models.DocumentAttachment.process_id == process.id
@@ -2492,7 +2758,8 @@ def list_attachments(
 @app.get("/api/attachments/{attachment_id}/download")
 def download_attachment(
     attachment_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(auth.get_current_active_user),
 ):
     """Download de anexo."""
     attachment = db.query(models.DocumentAttachment).filter(
@@ -2500,6 +2767,12 @@ def download_attachment(
     ).first()
     
     if not attachment:
+        raise HTTPException(status_code=404, detail="Anexo não encontrado")
+    
+    proc = db.query(models.Process).filter(
+        models.Process.id == attachment.process_id
+    ).first()
+    if not proc or not user_can_access_process(proc, current_user):
         raise HTTPException(status_code=404, detail="Anexo não encontrado")
     
     file_path = utils.UPLOAD_DIR / attachment.file_path
@@ -2522,12 +2795,7 @@ def generate_process_report(
     current_user = Depends(auth.get_current_active_user)
 ):
     """Gera relatório PDF de um processo."""
-    process = db.query(models.Process).filter(
-        models.Process.protocol_number == protocol
-    ).first()
-    
-    if not process:
-        raise HTTPException(status_code=404, detail="Processo não encontrado")
+    process = get_process_for_user(db, current_user, protocol)
     
     # Preparar dados
     process_data = {
@@ -2599,12 +2867,7 @@ async def notify_process_deadline(
     current_user = Depends(auth.get_current_active_user)
 ):
     """Envia notificação de prazo vencido para requerente."""
-    process = db.query(models.Process).filter(
-        models.Process.protocol_number == protocol
-    ).first()
-    
-    if not process:
-        raise HTTPException(status_code=404, detail="Processo não encontrado")
+    process = get_process_for_user(db, current_user, protocol)
     
     # Buscar prazos vencidos
     today = date.today()
@@ -2702,9 +2965,12 @@ async def get_sync_history(
     Returns:
         Lista de histórico de sincronizações ordenada por data (mais recente primeiro)
     """
-    linked_sheet = db.query(models.LinkedSheet).filter(
-        models.LinkedSheet.file_id == file_id,
-        models.LinkedSheet.is_active == True
+    linked_sheet = scope_linked_sheet_query(
+        db.query(models.LinkedSheet).filter(
+            models.LinkedSheet.file_id == file_id,
+            models.LinkedSheet.is_active == True,
+        ),
+        current_user,
     ).first()
     
     if not linked_sheet:
@@ -2763,6 +3029,7 @@ async def link_google_sheet(
     from backend import drive_service
     from backend import google_drive_utils
     from backend import google_auth
+    from backend import webhook_config
     from datetime import datetime
     
     file_id = google_drive_utils.extract_file_id_from_url(link_data.url)
@@ -2864,9 +3131,10 @@ async def link_google_sheet(
             )
     
     # Agora sempre será Google Sheets, então pode criar watch channel
-    
-    webhook_url = os.getenv('WEBHOOK_BASE_URL', 'http://localhost:8001') + '/api/webhooks/google-drive'
-    
+    webhook_url, webhook_err = webhook_config.build_google_drive_webhook_url()
+    if webhook_err:
+        raise HTTPException(status_code=400, detail=webhook_err)
+
     try:
         channel_info = drive_service.create_watch_channel(
             file_id=file_id,
@@ -2879,6 +3147,16 @@ async def link_google_sheet(
         ).first()
         
         if existing:
+            if existing.owner_user_id is None:
+                existing.owner_user_id = current_user.id
+            elif existing.owner_user_id != current_user.id and not current_user.is_admin:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Esta planilha já está vinculada a outra conta PGR. "
+                        "O mesmo ficheiro no Google só pode ter um vínculo de sincronização."
+                    ),
+                )
             existing.channel_id = channel_info['channel_id']
             existing.resource_id = channel_info['resource_id']
             existing.expiration = datetime.fromtimestamp(channel_info['expiration'] / 1000)
@@ -2891,7 +3169,8 @@ async def link_google_sheet(
                 channel_id=channel_info['channel_id'],
                 resource_id=channel_info['resource_id'],
                 expiration=datetime.fromtimestamp(channel_info['expiration'] / 1000),
-                is_active=True
+                is_active=True,
+                owner_user_id=current_user.id,
             )
             db.add(linked_sheet)
         
@@ -2931,8 +3210,9 @@ async def unlink_google_sheet(
     """
     from backend import drive_service
     
-    linked_sheet = db.query(models.LinkedSheet).filter(
-        models.LinkedSheet.file_id == file_id
+    linked_sheet = scope_linked_sheet_query(
+        db.query(models.LinkedSheet).filter(models.LinkedSheet.file_id == file_id),
+        current_user,
     ).first()
     
     if not linked_sheet:
@@ -2955,8 +3235,9 @@ async def list_linked_sheets(
     """
     List all linked Google Sheets.
     """
-    linked_sheets = db.query(models.LinkedSheet).filter(
-        models.LinkedSheet.is_active == True
+    linked_sheets = scope_linked_sheet_query(
+        db.query(models.LinkedSheet).filter(models.LinkedSheet.is_active == True),
+        current_user,
     ).all()
     
     return [
@@ -2982,11 +3263,15 @@ async def renew_watch_channel(
     Creates a new watch channel if the current one is expired or expiring soon.
     """
     from backend import drive_service
+    from backend import webhook_config
     from datetime import datetime
     
-    linked_sheet = db.query(models.LinkedSheet).filter(
-        models.LinkedSheet.file_id == file_id,
-        models.LinkedSheet.is_active == True
+    linked_sheet = scope_linked_sheet_query(
+        db.query(models.LinkedSheet).filter(
+            models.LinkedSheet.file_id == file_id,
+            models.LinkedSheet.is_active == True,
+        ),
+        current_user,
     ).first()
     
     if not linked_sheet:
@@ -3000,8 +3285,9 @@ async def renew_watch_channel(
             # Ignorar erro se o canal já estiver expirado
             pass
     
-    # Criar novo watch channel
-    webhook_url = os.getenv('WEBHOOK_BASE_URL', 'http://localhost:8001') + '/api/webhooks/google-drive'
+    webhook_url, webhook_err = webhook_config.build_google_drive_webhook_url()
+    if webhook_err:
+        raise HTTPException(status_code=400, detail=webhook_err)
     
     try:
         channel_info = drive_service.create_watch_channel(
@@ -3053,14 +3339,19 @@ async def get_service_account_email_endpoint(
         email = google_auth.get_service_account_email()
         return {
             "service_account_email": email,
+            "privacy_note": (
+                "Os seus dados de processos ficam na base de dados do PGR (servidor da aplicação). "
+                "A planilha continua no Google Drive/Google Sheets da sua conta; a service account só lê "
+                "o que você partilhar explicitamente como leitor."
+            ),
             "instructions": (
-                "Para vincular uma planilha do Google Sheets:\n"
-                "1. Abra a planilha no Google Sheets\n"
-                "2. Clique em 'Compartilhar' (botão no canto superior direito)\n"
-                f"3. Adicione o email: {email}\n"
-                "4. Defina a permissão como 'Visualizador'\n"
-                "5. Use o endpoint /api/sheets/link com a URL da planilha"
-            )
+                "Onboarding em 3 passos (modo Google Sheets + sincronização):\n"
+                "1. Crie a sua conta no PGR e inicie sessão.\n"
+                f"2. Copie o email da service account: {email}\n"
+                "3. No Google Sheets: Partilhar → adicione esse email como Leitor (Viewer).\n"
+                "Depois importe ou vincule a URL da planilha no PGR. "
+                "Quem preferir não usar o Drive pode importar apenas por ficheiro (upload), sem sincronização."
+            ),
         }
     except Exception as e:
         raise HTTPException(
@@ -3082,11 +3373,6 @@ def serve_frontend(full_path: str):
     # Tentar servir React buildado
     if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
         index_path = frontend_dist_path / "index.html"
-        return FileResponse(str(index_path))
-    
-    # Fallback: se frontend antigo existir, servir ele
-    if frontend_old_path.exists() and (frontend_old_path / "index.html").exists():
-        index_path = frontend_old_path / "index.html"
         return FileResponse(str(index_path))
     
     # Se nenhum frontend existe, retornar mensagem útil

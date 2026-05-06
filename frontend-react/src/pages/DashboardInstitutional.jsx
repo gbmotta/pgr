@@ -8,8 +8,7 @@ import {
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import LegalProcessTable from '../components/tables/LegalProcessTable'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
+import { API_URL } from '@/lib/apiConfig'
 
 const parsePrazoDate = (prazoStr) => {
   if (!prazoStr) return null

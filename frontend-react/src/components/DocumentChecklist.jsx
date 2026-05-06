@@ -6,8 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CheckCircle2, Circle, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
+import { API_URL } from '@/lib/apiConfig'
 
 /**
  * Componente de Checklist de Documentos Jurídicos

@@ -58,11 +58,17 @@ def create_watch_channel(
             fileId=file_id,
             body=request_body
         ).execute()
+
+        exp_raw = response.get('expiration')
+        if exp_raw is not None:
+            expiration_ms = int(exp_raw)
+        else:
+            expiration_ms = int((datetime.utcnow() + timedelta(hours=expiration_hours)).timestamp() * 1000)
         
         return {
             'channel_id': response.get('id'),
             'resource_id': response.get('resourceId'),
-            'expiration': response.get('expiration'),
+            'expiration': expiration_ms,
             'file_id': file_id
         }
     except HttpError as e:

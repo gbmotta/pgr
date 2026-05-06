@@ -101,16 +101,23 @@ def sync_sheet_data(
                     continue
                 
                 identifier = processo_adm_1doc or processo_judicial
+                owner_id = linked_sheet.owner_user_id
                 
                 existing = None
                 if processo_adm_1doc:
-                    existing = db.query(models.Process).filter(
+                    q = db.query(models.Process).filter(
                         models.Process.processo_adm_1doc == processo_adm_1doc
-                    ).first()
+                    )
+                    if owner_id is not None:
+                        q = q.filter(models.Process.owner_user_id == owner_id)
+                    existing = q.first()
                 if not existing and processo_judicial:
-                    existing = db.query(models.Process).filter(
+                    q = db.query(models.Process).filter(
                         models.Process.processo_judicial == processo_judicial
-                    ).first()
+                    )
+                    if owner_id is not None:
+                        q = q.filter(models.Process.owner_user_id == owner_id)
+                    existing = q.first()
                 
                 if existing:
                     # Coletar campos atualizados para auditoria
@@ -152,8 +159,6 @@ def sync_sheet_data(
                         existing.data_realizacao_ato = new_data_ato
                     
                     if updated_fields:
-                        existing.updated_at = datetime.utcnow()
-                        
                         # Registrar mudanças no histórico de auditoria
                         from backend import audit_service
                         audit_service.AuditService.record_process_update(
@@ -181,8 +186,11 @@ def sync_sheet_data(
                         prazo_final=process_data.get('prazo_final'),
                         tipo_ato=process_data.get('tipo_ato'),
                         data_realizacao_ato=process_data.get('data_realizacao_ato'),
+                        applicant_registration=process_data.get('applicant_registration'),
+                        notes=process_data.get('notes'),
                         protocol_number=identifier,
-                        created_date=datetime.utcnow().date()
+                        created_date=datetime.utcnow().date(),
+                        owner_user_id=owner_id,
                     )
                     db.add(new_process)
                     db.flush()

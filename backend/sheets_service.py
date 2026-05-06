@@ -46,9 +46,10 @@ def fetch_sheet_data(file_id: str, range_name: Optional[str] = None) -> List[Lis
                 range=range_name
             ).execute()
         else:
+            # Faixa ampla: cabeçalhos podem ir além da coluna Z; linhas esparsas voltam com len variável
             result = spreadsheet.values().get(
                 spreadsheetId=file_id,
-                range='A:Z'
+                range='A:ZZ'
             ).execute()
         
         values = result.get('values', [])
@@ -72,13 +73,37 @@ def fetch_sheet_as_dataframe(file_id: str, sheet_name: Optional[str] = None) -> 
         ValueError: If data cannot be fetched or parsed
     """
     try:
-        range_name = f"{sheet_name}!A:Z" if sheet_name else None
+        range_name = f"{sheet_name}!A:ZZ" if sheet_name else None
         values = fetch_sheet_data(file_id, range_name)
         
         if not values:
             return pd.DataFrame()
-        
-        df = pd.DataFrame(values[1:], columns=values[0] if values else [])
+
+        raw_header = values[0]
+        header = []
+        for i, c in enumerate(raw_header):
+            h = str(c).strip() if c is not None else ''
+            if not h:
+                h = f'COL_{i + 1}'
+            header.append(h)
+
+        seen: Dict[str, int] = {}
+        unique_header: List[str] = []
+        for h in header:
+            if h not in seen:
+                seen[h] = 0
+                unique_header.append(h)
+            else:
+                seen[h] += 1
+                unique_header.append(f'{h}__{seen[h]}')
+
+        n = len(unique_header)
+        rows: List[List[Any]] = []
+        for row in values[1:]:
+            r = [row[i] if i < len(row) else '' for i in range(n)]
+            rows.append(r)
+
+        df = pd.DataFrame(rows, columns=unique_header)
         return df
     except Exception as e:
         raise ValueError(f"Failed to convert Sheets data to DataFrame: {str(e)}")

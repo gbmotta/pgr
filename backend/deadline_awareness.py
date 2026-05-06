@@ -3,7 +3,7 @@ Deadline awareness and alert system.
 Detects overdue and upcoming deadlines with configurable windows.
 """
 from datetime import date, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from sqlalchemy.orm import Session
 from . import models_sqlalchemy as models
 
@@ -110,7 +110,8 @@ def calculate_deadline_status(
 def get_processes_with_deadline_status(
     db: Session,
     alert_window_days: int = 7,
-    include_ok: bool = False
+    include_ok: bool = False,
+    scoped_user: Any = None,
 ) -> List[Dict]:
     """
     Get all processes with deadline status calculated.
@@ -123,7 +124,10 @@ def get_processes_with_deadline_status(
     Returns:
         List of processes with deadline_status added
     """
-    processes = db.query(models.Process).all()
+    q = db.query(models.Process)
+    if scoped_user is not None and not scoped_user.is_admin:
+        q = q.filter(models.Process.owner_user_id == scoped_user.id)
+    processes = q.all()
     
     result = []
     for proc in processes:
@@ -147,7 +151,8 @@ def get_processes_with_deadline_status(
 
 def get_critical_deadlines(
     db: Session,
-    alert_window_days: int = 7
+    alert_window_days: int = 7,
+    scoped_user: Any = None,
 ) -> Tuple[List[Dict], List[Dict]]:
     """
     Get overdue and upcoming deadlines that require attention.
@@ -162,9 +167,10 @@ def get_critical_deadlines(
     overdue = []
     upcoming = []
     
-    processes = db.query(models.Process).filter(
-        models.Process.prazo_final.isnot(None)
-    ).all()
+    q = db.query(models.Process).filter(models.Process.prazo_final.isnot(None))
+    if scoped_user is not None and not scoped_user.is_admin:
+        q = q.filter(models.Process.owner_user_id == scoped_user.id)
+    processes = q.all()
     
     for proc in processes:
         status = calculate_deadline_status(proc.prazo_final, alert_window_days)

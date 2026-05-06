@@ -31,7 +31,7 @@ Versão: 2.0.0
 Data: Dezembro 2025
 """
 from sqlalchemy import (
-    Column, Integer, String, Text, Boolean, Date, ForeignKey, Index, create_engine, DateTime
+    Column, Integer, String, Text, Boolean, Date, ForeignKey, Index, create_engine, DateTime, text
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from datetime import date, datetime
@@ -123,7 +123,7 @@ class Process(Base):
     data_realizacao_ato = Column(String(10), nullable=True)  # DATA DE REALIZAÇÃO DO ATO (DD/MM/AAAA)
     
     # Campos legados (mantidos para compatibilidade)
-    protocol_number = Column(String(50), unique=True, nullable=True, index=True)  # Número de protocolo único (gerado automaticamente)
+    protocol_number = Column(String(50), nullable=True, index=True)  # Único por utilizador na aplicação; não é global
     type_id = Column(Integer, ForeignKey('process_types.id'), nullable=True)  # FK para tipo de processo
     applicant_name = Column(String(200), nullable=True)  # Nome do requerente
     applicant_registration = Column(String(50), nullable=True)  # Matrícula do servidor
@@ -136,7 +136,11 @@ class Process(Base):
     closed_date = Column(Date, nullable=True)  # Data de fechamento do processo
     notes = Column(Text, nullable=True)  # Observações gerais
     
+    # Multi-tenant: dono do processo (advogado / conta PGR)
+    owner_user_id = Column(Integer, ForeignKey('users.id'), nullable=True, index=True)
+    
     # Relacionamentos
+    owner = relationship("User", back_populates="owned_processes", foreign_keys=[owner_user_id])
     process_type = relationship("ProcessType", back_populates="processes")
     status = relationship("Status", back_populates="processes")
     documents = relationship("ProcessDocument", back_populates="process")
@@ -260,8 +264,7 @@ class User(Base):
     is_admin = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     
-    # Relacionamentos futuros (ex: histórico de alterações)
-    # changes = relationship("ProcessChange", back_populates="user")
+    owned_processes = relationship("Process", back_populates="owner", foreign_keys="Process.owner_user_id")
 
 
 class DocumentAttachment(Base):
@@ -335,6 +338,43 @@ def get_engine(db_path: str = None):
     return engine
 
 
+def run_sqlite_migrations(engine):
+    """Adiciona colunas de multi-tenant em bases SQLite existentes e faz backfill."""
+    if engine.dialect.name != 'sqlite':
+        return
+    with engine.begin() as conn:
+        def table_columns(table: str) -> set:
+            rows = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
+            return {r[1] for r in rows}
+        
+        if 'processes' in [r[0] for r in conn.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )).fetchall()]:
+            cols = table_columns('processes')
+            if 'owner_user_id' not in cols:
+                conn.execute(text(
+                    "ALTER TABLE processes ADD COLUMN owner_user_id INTEGER REFERENCES users(id)"
+                ))
+        
+        if 'linked_sheets' in [r[0] for r in conn.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )).fetchall()]:
+            cols = table_columns('linked_sheets')
+            if 'owner_user_id' not in cols:
+                conn.execute(text(
+                    "ALTER TABLE linked_sheets ADD COLUMN owner_user_id INTEGER REFERENCES users(id)"
+                ))
+        
+        conn.execute(text(
+            "UPDATE processes SET owner_user_id = (SELECT id FROM users ORDER BY id LIMIT 1) "
+            "WHERE owner_user_id IS NULL AND EXISTS (SELECT 1 FROM users LIMIT 1)"
+        ))
+        conn.execute(text(
+            "UPDATE linked_sheets SET owner_user_id = (SELECT id FROM users ORDER BY id LIMIT 1) "
+            "WHERE owner_user_id IS NULL AND EXISTS (SELECT 1 FROM users LIMIT 1)"
+        ))
+
+
 def create_tables(engine):
     """
     Cria todas as tabelas no banco de dados.
@@ -350,6 +390,7 @@ def create_tables(engine):
         create_tables(engine)
     """
     Base.metadata.create_all(engine)
+    run_sqlite_migrations(engine)
 
 
 def get_session(engine):
@@ -375,6 +416,7 @@ class LinkedSheet(Base):
     __tablename__ = 'linked_sheets'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_user_id = Column(Integer, ForeignKey('users.id'), nullable=True, index=True)
     file_id = Column(String(255), unique=True, nullable=False, index=True)
     url = Column(String(500), nullable=False)
     channel_id = Column(String(255), nullable=True)

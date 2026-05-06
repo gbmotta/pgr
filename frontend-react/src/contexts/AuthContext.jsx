@@ -1,9 +1,8 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import axios from 'axios'
+import { API_URL } from '@/lib/apiConfig'
 
 const AuthContext = createContext(null)
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -32,6 +31,16 @@ export function AuthProvider({ children }) {
     }
   }
 
+  /** Atualiza o objeto `user` sem desligar o loading inicial (útil após guardar perfil). */
+  const refreshUser = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/auth/me`)
+      setUser(response.data)
+    } catch {
+      /* ignorar; sessão pode ter expirado */
+    }
+  }
+
   const login = async (username, password) => {
     const response = await axios.post(`${API_URL}/api/auth/login`, {
       username,
@@ -51,7 +60,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, loading, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )

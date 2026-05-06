@@ -59,5 +59,10 @@ frontend-dist/
 .DS_Store
 Thumbs.db
 
+# ngrok (download local)
+ngrok.tgz
+
 # Logs
 *.log
+credentials/service_account.json
+credentials/*.json
