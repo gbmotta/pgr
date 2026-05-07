@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { ChevronDown, ChevronUp, Clock, AlertCircle, CheckCircle } from 'lucide-react'
+import { ChevronDown, ChevronUp, Clock, AlertCircle, CheckCircle, ArrowUpDown } from 'lucide-react'
 
 /**
  * Tabela Densa Jurídica - Processos Administrativos
@@ -17,7 +17,9 @@ export default function LegalProcessTable({
   onRowClick,
   expandableContent,
   keyField = 'id',
-  alertWindowDays = 7
+  alertWindowDays = 7,
+  /** Conteúdo personalizado quando não há linhas (substitui mensagem por defeito). */
+  emptyContent = null,
 }) {
   const [expandedRows, setExpandedRows] = useState(new Set())
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
@@ -64,14 +66,9 @@ export default function LegalProcessTable({
     if (!day || !month) return null
     
     const now = new Date()
-    const year = now.getFullYear()
-    let prazoDate = new Date(year, month - 1, day)
-    
-    if (prazoDate < now) {
-      prazoDate.setFullYear(year + 1)
-    }
-    
-    const daysUntil = Math.ceil((prazoDate - now) / (1000 * 60 * 60 * 24))
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const prazoDate = new Date(today.getFullYear(), month - 1, day)
+    const daysUntil = Math.ceil((prazoDate - today) / (1000 * 60 * 60 * 24))
     
     if (daysUntil < 0) return { status: 'vencido', color: 'text-status-vencido', bg: 'bg-status-vencido/10', icon: AlertCircle, daysUntil }
     if (daysUntil <= 7) return { status: 'vencendo', color: 'text-status-indeferido', bg: 'bg-status-indeferido/10', icon: Clock, daysUntil }
@@ -211,10 +208,19 @@ export default function LegalProcessTable({
   ]
 
   return (
-    <div className="w-full bg-white border border-neutral-border">
-      <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)]">
+    <div className="surface-panel w-full overflow-hidden">
+      <div className="flex items-center justify-between border-b border-neutral-border-light bg-[#faf8f3] px-4 py-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7e6a47]">Base processual</p>
+          <h3 className="mt-1 text-base font-semibold text-[#182534]">Tabela jurídica consolidada</h3>
+        </div>
+        <p className="text-xs text-[#6b7786]">
+          Clique na linha para abrir o processo. Ordene pelas colunas com indicador.
+        </p>
+      </div>
+      <div className="soft-scrollbar overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)]">
         <table className="w-full border-collapse min-w-full">
-          <thead className="bg-neutral-bg-tertiary sticky top-0 z-20 border-b-2 border-neutral-border">
+          <thead className="sticky top-0 z-20 border-b-2 border-neutral-border bg-[#f6f3ee]/95 backdrop-blur-sm">
             <tr>
               {expandableContent && (
                 <th className="w-10 px-3 py-2.5 border-r border-neutral-border"></th>
@@ -227,16 +233,20 @@ export default function LegalProcessTable({
                     px-3 py-2.5 text-left border-r border-neutral-border
                     text-[10px] font-bold uppercase tracking-wider
                     text-neutral-text-primary
-                    ${col.sortable ? 'cursor-pointer hover:bg-neutral-bg-secondary select-none' : ''}
+                    ${col.sortable ? 'cursor-pointer select-none hover:bg-[#ede8e0]' : ''}
                   `}
                   onClick={() => col.sortable && handleSort(col.key)}
                 >
                   <div className="flex items-center space-x-1.5">
                     <span className="leading-tight">{col.label}</span>
-                    {col.sortable && sortConfig.key === col.key && (
-                      <span className="text-[10px] font-normal">
-                        {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                      </span>
+                    {col.sortable && (
+                      sortConfig.key === col.key ? (
+                        <span className="text-[10px] font-normal">
+                          {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                        </span>
+                      ) : (
+                        <ArrowUpDown className="h-3 w-3 text-[#9aa5b3]" />
+                      )
                     )}
                   </div>
                 </th>
@@ -248,9 +258,13 @@ export default function LegalProcessTable({
               <tr>
                 <td
                   colSpan={canonicalColumns.length + (expandableContent ? 1 : 0)}
-                  className="px-4 py-16 text-center text-neutral-text-secondary text-sm"
+                  className="px-2 py-6 align-top"
                 >
-                  Nenhum processo encontrado
+                  {emptyContent ?? (
+                    <div className="py-12 text-center text-neutral-text-secondary text-sm">
+                      Nenhum processo encontrado
+                    </div>
+                  )}
                 </td>
               </tr>
             ) : (
@@ -264,11 +278,12 @@ export default function LegalProcessTable({
                     <tr
                       className={`
                         border-b border-neutral-border-light transition-colors
-                        ${isEven ? 'bg-white' : 'bg-neutral-bg-secondary'}
-                        ${onRowClick ? 'cursor-pointer hover:bg-neutral-bg-tertiary' : ''}
+                        ${isEven ? 'bg-white' : 'bg-[#fbfaf7]'}
+                        ${onRowClick ? 'cursor-pointer hover:bg-[#f4efe7]' : ''}
                         ${getRowDeadlineClass(row)}
                       `}
                       onClick={() => onRowClick && onRowClick(row)}
+                      title={onRowClick ? 'Abrir detalhes do processo' : undefined}
                     >
                       {expandableContent && (
                         <td className="px-3 py-2 border-r border-neutral-border-light">
@@ -277,7 +292,7 @@ export default function LegalProcessTable({
                               e.stopPropagation()
                               toggleRow(rowId)
                             }}
-                            className="p-0.5 hover:bg-neutral-bg-tertiary rounded transition-colors"
+                            className="rounded p-1 transition-colors hover:bg-[#ece7de]"
                             aria-label={isExpanded ? 'Recolher' : 'Expandir'}
                           >
                             {isExpanded ? (
@@ -303,7 +318,7 @@ export default function LegalProcessTable({
                       ))}
                     </tr>
                     {expandableContent && isExpanded && (
-                      <tr className="bg-neutral-bg-tertiary">
+                      <tr className="bg-[#f6f2ea]">
                         <td
                           colSpan={canonicalColumns.length + 1}
                           className="px-6 py-4 border-b border-neutral-border"

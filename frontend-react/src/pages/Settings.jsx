@@ -18,6 +18,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { API_URL } from '@/lib/apiConfig'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 const IMPORT_MODE_KEY = 'pgr_import_mode_preference'
 const IMPORT_MODES = [
@@ -161,16 +162,72 @@ export default function Settings() {
     toast.success('Email copiado.')
   }
 
+  const settingsTabs = [
+    { id: 'profile', label: 'Perfil', Icon: User, description: 'Nome e email' },
+    { id: 'security', label: 'Segurança', Icon: Lock, description: 'Palavra-passe' },
+    { id: 'privacy', label: 'Privacidade e modo', Icon: Shield, description: 'Dados e preferências' },
+    { id: 'integrations', label: 'Integrações', Icon: Link2, description: 'Google Sheets' },
+  ]
+  const [settingsSection, setSettingsSection] = useState('profile')
+
   return (
     <div className="space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Configurações</h1>
-        <p className="text-sm text-gray-600 mt-1">
+      <section className="surface-panel px-6 py-6 lg:px-8">
+        <span className="hero-badge">
+          <Shield className="h-3.5 w-3.5" />
+          Preferências e segurança
+        </span>
+        <h1 className="page-title mt-4 text-3xl md:text-[2.35rem]">Configurações</h1>
+        <p className="page-subtitle mt-3">
           Perfil, segurança, privacidade e integração com Google Sheets.
         </p>
+      </section>
+
+      <div
+        role="tablist"
+        aria-label="Secções de configurações"
+        className="surface-panel flex flex-wrap gap-2 p-3"
+      >
+        {settingsTabs.map(({ id, label, Icon, description }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={settingsSection === id}
+            id={`settings-tab-${id}`}
+            aria-controls={`settings-panel-${id}`}
+            onClick={() => setSettingsSection(id)}
+            className={cn(
+              'inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
+              settingsSection === id
+                ? 'border-[#1e3347] bg-[#1e3347] text-white shadow-sm'
+                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+            )}
+          >
+            <Icon className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+            <span>
+              <span className="font-medium block leading-tight">{label}</span>
+              <span
+                className={cn(
+                  'text-[11px] leading-tight block',
+                  settingsSection === id ? 'text-white/80' : 'text-gray-500'
+                )}
+              >
+                {description}
+              </span>
+            </span>
+          </button>
+        ))}
       </div>
 
-      <Card>
+      <div
+        id="settings-panel-profile"
+        role="tabpanel"
+        aria-labelledby="settings-tab-profile"
+        hidden={settingsSection !== 'profile'}
+        className={cn(settingsSection !== 'profile' && 'hidden')}
+      >
+        <Card className="border-[#d8dde5] shadow-[0_18px_34px_-28px_rgba(15,23,42,0.5)]">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <User className="h-5 w-5 text-gray-500" />
@@ -228,8 +285,16 @@ export default function Settings() {
           </form>
         </CardContent>
       </Card>
+      </div>
 
-      <Card>
+      <div
+        id="settings-panel-security"
+        role="tabpanel"
+        aria-labelledby="settings-tab-security"
+        hidden={settingsSection !== 'security'}
+        className={cn(settingsSection !== 'security' && 'hidden')}
+      >
+        <Card className="border-[#d8dde5] shadow-[0_18px_34px_-28px_rgba(15,23,42,0.5)]">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Lock className="h-5 w-5 text-gray-500" />
@@ -287,8 +352,16 @@ export default function Settings() {
           </form>
         </CardContent>
       </Card>
+      </div>
 
-      <Card>
+      <div
+        id="settings-panel-privacy"
+        role="tabpanel"
+        aria-labelledby="settings-tab-privacy"
+        hidden={settingsSection !== 'privacy'}
+        className={cn(settingsSection !== 'privacy' && 'hidden')}
+      >
+      <Card className="border-[#d8dde5] shadow-[0_18px_34px_-28px_rgba(15,23,42,0.5)]">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Shield className="h-5 w-5 text-gray-500" />
@@ -313,7 +386,7 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-[#d8dde5] shadow-[0_18px_34px_-28px_rgba(15,23,42,0.5)]">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Cloud className="h-5 w-5 text-gray-500" />
@@ -334,7 +407,7 @@ export default function Settings() {
                 key={id}
                 className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
                   importMode === id
-                    ? 'border-blue-500 bg-blue-50/50'
+                    ? 'border-[#5a88b2] bg-[#eef5fb]'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
@@ -358,8 +431,16 @@ export default function Settings() {
           </Button>
         </CardContent>
       </Card>
+      </div>
 
-      <Card>
+      <div
+        id="settings-panel-integrations"
+        role="tabpanel"
+        aria-labelledby="settings-tab-integrations"
+        hidden={settingsSection !== 'integrations'}
+        className={cn(settingsSection !== 'integrations' && 'hidden')}
+      >
+      <Card className="border-[#d8dde5] shadow-[0_18px_34px_-28px_rgba(15,23,42,0.5)]">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Link2 className="h-5 w-5 text-gray-500" />
@@ -406,6 +487,7 @@ export default function Settings() {
           </Button>
         </CardContent>
       </Card>
+      </div>
     </div>
   )
 }

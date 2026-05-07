@@ -10,11 +10,13 @@ import {
   LayoutList,
   Loader2,
   ExternalLink,
+  Info,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { API_URL } from '@/lib/apiConfig'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 
 function processHref(row) {
   const id = row.processo_adm_1doc || row.processo_judicial || row.protocol_number
@@ -93,13 +95,17 @@ export default function Reports() {
     row.processo_adm_1doc || row.processo_judicial || row.protocol_number || '—'
 
   return (
-    <div className="h-full px-4 sm:px-6 lg:px-8 py-6 overflow-auto max-w-6xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Relatórios</h1>
-        <p className="mt-2 text-gray-600">
+    <div className="mx-auto h-full max-w-6xl space-y-8 overflow-auto py-6">
+      <section className="surface-panel px-6 py-6 lg:px-8">
+        <span className="hero-badge">
+          <FileText className="h-3.5 w-3.5" />
+          Análise executiva
+        </span>
+        <h1 className="page-title mt-4">Relatórios</h1>
+        <p className="page-subtitle mt-3">
           Resumo dos <strong>seus</strong> processos, prazos da planilha e prazos legais calculados no PGR.
         </p>
-      </div>
+      </section>
 
       {loading && (
         <div className="flex items-center gap-2 text-gray-500 text-sm">
@@ -107,6 +113,30 @@ export default function Reports() {
           A carregar dados…
         </div>
       )}
+
+      <Card className="border-[#d7e3ef] bg-[#eef5fb]/80 shadow-[0_12px_30px_-24px_rgba(37,99,235,0.45)]">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Info className="h-5 w-5 text-blue-700" />
+            Legenda rápida
+          </CardTitle>
+          <CardDescription>Cores e tipos de prazo nesta página.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-700">
+          <span className="inline-flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-600" />
+            Prazo final da planilha (atenção)
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-red-600" />
+            Prazo legal vencido
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-blue-700" />
+            Prazo legal a vencer
+          </span>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -147,7 +177,7 @@ export default function Reports() {
         </Card>
       </div>
 
-      <Card>
+      <Card className="overflow-hidden border-[#d9dee6] shadow-[0_16px_34px_-28px_rgba(15,23,42,0.5)]">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-amber-600" />
@@ -159,13 +189,15 @@ export default function Reports() {
         </CardHeader>
         <CardContent>
           {sheetAttentionRows.length === 0 ? (
-            <p className="text-sm text-gray-500">
-              Nenhum processo com prazo final vencido ou próximo nos próximos 30 dias.
-            </p>
+            <EmptyState
+              compact
+              title="Sem alertas de prazo final (planilha)"
+              description="Nenhum processo com prazo final vencido ou nos próximos 30 dias, segundo os dados da sua conta."
+            />
           ) : (
-            <div className="overflow-x-auto rounded-md border">
+            <div className="soft-scrollbar overflow-x-auto rounded-2xl border border-[#dde2e8]">
               <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                <thead className="bg-[#f6f3ee] text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                   <tr>
                     <th className="px-4 py-3">Processo</th>
                     <th className="px-4 py-3">Prazo final</th>
@@ -181,7 +213,7 @@ export default function Reports() {
                     const overdue = st?.status === 'overdue'
                     const days = st?.days_until
                     return (
-                      <tr key={row.id} className="hover:bg-slate-50/80">
+                      <tr key={row.id} className="hover:bg-[#f9f7f2]">
                         <td className="px-4 py-3 font-medium text-gray-900">{displayId(row)}</td>
                         <td className="px-4 py-3 text-gray-700">{row.prazo_final || '—'}</td>
                         <td className="px-4 py-3">
@@ -227,7 +259,7 @@ export default function Reports() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="overflow-hidden border-[#d9dee6] shadow-[0_16px_34px_-28px_rgba(15,23,42,0.5)]">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Scale className="h-5 w-5 text-red-600" />
@@ -239,11 +271,15 @@ export default function Reports() {
         </CardHeader>
         <CardContent>
           {overdueLegal.length === 0 ? (
-            <p className="text-sm text-gray-500">Nenhum prazo legal vencido encontrado.</p>
+            <EmptyState
+              compact
+              title="Sem prazos legais vencidos"
+              description="Quando existirem prazos legais em atraso, aparecem aqui com link para o processo e opção de PDF."
+            />
           ) : (
-            <div className="overflow-x-auto rounded-md border">
+            <div className="soft-scrollbar overflow-x-auto rounded-2xl border border-[#dde2e8]">
               <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                <thead className="bg-[#f6f3ee] text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                   <tr>
                     <th className="px-4 py-3">Protocolo</th>
                     <th className="px-4 py-3">Tipo</th>
@@ -255,7 +291,7 @@ export default function Reports() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {overdueLegal.map((deadline, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/80">
+                    <tr key={idx} className="hover:bg-[#f9f7f2]">
                       <td className="px-4 py-3 font-medium">
                         {deadline.protocol_number || '—'}
                       </td>
@@ -307,7 +343,11 @@ export default function Reports() {
         </CardHeader>
         <CardContent>
           {upcomingLegal.length === 0 ? (
-            <p className="text-sm text-gray-500">Nenhum prazo legal neste intervalo.</p>
+            <EmptyState
+              compact
+              title="Sem prazos legais neste período"
+              description="Não há prazos legais a vencer nos próximos 90 dias para os seus processos."
+            />
           ) : (
             <div className="overflow-x-auto rounded-md border">
               <table className="min-w-full text-sm">
@@ -359,7 +399,7 @@ export default function Reports() {
         </CardContent>
       </Card>
 
-      <Card className="border-dashed">
+      <Card className="border-dashed border-[#d5dbe4] bg-[#fcfbf8]">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <LayoutList className="h-5 w-5 text-gray-500" />

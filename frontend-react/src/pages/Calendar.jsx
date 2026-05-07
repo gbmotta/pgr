@@ -21,6 +21,7 @@ import {
   Clock,
   FileText,
   Loader2,
+  Filter,
 } from 'lucide-react'
 import { API_URL } from '@/lib/apiConfig'
 
@@ -41,7 +42,6 @@ function processHref(p) {
 }
 
 function buildCalendarEvents(processes, overdue, upcoming, year, monthIndex) {
-  /** @type {Record<string, Array<{ key: string, kind: string, title: string, subtitle: string, href: string | null }>>} */
   const map = {}
 
   const push = (dateKey, item) => {
@@ -95,9 +95,13 @@ function buildCalendarEvents(processes, overdue, upcoming, year, monthIndex) {
 
 const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
 
+/** @typedef {'all' | 'sheet' | 'legal_upcoming' | 'legal_overdue'} CalendarEventFilter */
+
 export default function Calendar() {
   const [cursor, setCursor] = useState(() => new Date())
   const [selectedKey, setSelectedKey] = useState(null)
+  /** @type {[CalendarEventFilter, React.Dispatch<React.SetStateAction<CalendarEventFilter>>]} */
+  const [eventFilter, setEventFilter] = useState(() => /** @type {CalendarEventFilter} */ ('all'))
 
   const { data: processes = [], isLoading: loadingProc } = useQuery({
     queryKey: ['processes'],
@@ -139,33 +143,60 @@ export default function Calendar() {
     [processes, overdue, upcoming, year, monthIndex]
   )
 
-  const selectedEvents = selectedKey ? eventsByDay[selectedKey] || [] : []
+  const filteredEventsByDay = useMemo(() => {
+    if (eventFilter === 'all') return eventsByDay
+    const out = {}
+    for (const [key, list] of Object.entries(eventsByDay)) {
+      const filtered = list.filter((ev) => {
+        if (eventFilter === 'sheet') return ev.kind === 'prazo_final'
+        if (eventFilter === 'legal_upcoming') return ev.kind === 'deadline'
+        if (eventFilter === 'legal_overdue') return ev.kind === 'deadline_overdue'
+        return true
+      })
+      if (filtered.length) out[key] = filtered
+    }
+    return out
+  }, [eventsByDay, eventFilter])
+
+  const selectedEvents = selectedKey ? filteredEventsByDay[selectedKey] || [] : []
+
+  const filterOptions = [
+    { id: 'all', label: 'Todos' },
+    { id: 'sheet', label: 'Prazo final (planilha)' },
+    { id: 'legal_upcoming', label: 'Prazos legais a vencer' },
+    { id: 'legal_overdue', label: 'Prazos legais vencidos' },
+  ]
 
   return (
     <div className="space-y-6">
+      <section className="surface-panel px-6 py-6 lg:px-8">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Calendário</h1>
-          <p className="text-sm text-gray-600 mt-1">
+          <span className="hero-badge">
+            <CalendarIcon className="h-3.5 w-3.5" />
+            Visão temporal
+          </span>
+          <h1 className="page-title mt-4 text-3xl md:text-[2.35rem]">Calendário</h1>
+          <p className="page-subtitle mt-3">
             Prazos finais dos seus processos e prazos legais (vencidos e próximos 12 meses).
           </p>
         </div>
-        <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+        <div className="flex items-center gap-2 rounded-2xl border border-[#d8dde4] bg-white/90 p-1.5 shadow-[0_14px_28px_-26px_rgba(15,23,42,0.6)]">
           <button
             type="button"
             onClick={() => setCursor((d) => addMonths(d, -1))}
-            className="rounded-md p-2 text-gray-600 hover:bg-gray-100"
+            className="rounded-xl p-2 text-gray-600 hover:bg-gray-100"
             aria-label="Mês anterior"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
-          <span className="min-w-[10rem] text-center text-sm font-semibold text-gray-900 capitalize">
+          <span className="min-w-[10rem] text-center text-sm font-semibold capitalize text-gray-900">
             {format(cursor, 'MMMM yyyy', { locale: ptBR })}
           </span>
           <button
             type="button"
             onClick={() => setCursor((d) => addMonths(d, 1))}
-            className="rounded-md p-2 text-gray-600 hover:bg-gray-100"
+            className="rounded-xl p-2 text-gray-600 hover:bg-gray-100"
             aria-label="Mês seguinte"
           >
             <ChevronRight className="h-5 w-5" />
@@ -177,15 +208,40 @@ export default function Calendar() {
               setCursor(t)
               setSelectedKey(format(t, 'yyyy-MM-dd'))
             }}
-            className="ml-1 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            className="ml-1 rounded-xl border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
           >
             Hoje
           </button>
         </div>
       </div>
+      </section>
+
+      <div className="surface-panel flex flex-wrap items-center gap-2 px-3 py-3">
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600">
+          <Filter className="h-4 w-4 text-gray-500" aria-hidden />
+          Mostrar:
+        </span>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar tipo de evento no calendário">
+          {filterOptions.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setEventFilter(opt.id)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+                eventFilter === opt.id
+                  ? 'bg-[#1e3347] text-white shadow-sm'
+                  : 'bg-[#eef1f5] text-gray-700 hover:bg-[#e3e8ee]'
+              }`}
+              aria-pressed={eventFilter === opt.id}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="flex flex-col gap-6 lg:flex-row">
-        <div className="flex-1 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="surface-panel flex-1 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-24 text-gray-500 gap-2">
               <Loader2 className="h-6 w-6 animate-spin" />
@@ -193,7 +249,7 @@ export default function Calendar() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-7 border-b border-gray-100 bg-slate-50">
+              <div className="grid grid-cols-7 border-b border-gray-100 bg-[#f6f3ee]">
                 {WEEKDAYS.map((w) => (
                   <div
                     key={w}
@@ -207,7 +263,7 @@ export default function Calendar() {
                 {days.map((day) => {
                   const key = format(day, 'yyyy-MM-dd')
                   const inMonth = isSameMonth(day, cursor)
-                  const events = eventsByDay[key] || []
+                  const events = filteredEventsByDay[key] || []
                   const isSel = selectedKey === key
                   const today = isToday(day)
 
@@ -217,10 +273,10 @@ export default function Calendar() {
                       type="button"
                       onClick={() => setSelectedKey(key)}
                       className={[
-                        'min-h-[5.5rem] border-b border-r border-gray-100 p-1 text-left transition-colors hover:bg-blue-50/50',
+                        'min-h-[5.5rem] border-b border-r border-gray-100 p-1 text-left transition-colors hover:bg-[#f7f0e6]',
                         !inMonth && 'bg-gray-50/80 text-gray-400',
-                        isSel && 'ring-2 ring-inset ring-blue-500 bg-blue-50/30',
-                        today && !isSel && 'bg-amber-50/40',
+                        isSel && 'ring-2 ring-inset ring-[#2f5c81] bg-[#eef5fb]',
+                        today && !isSel && 'bg-[#fbf1dd]',
                       ]
                         .filter(Boolean)
                         .join(' ')}
@@ -259,7 +315,7 @@ export default function Calendar() {
           )}
         </div>
 
-        <div className="w-full lg:w-80 shrink-0 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="surface-panel w-full shrink-0 p-4 lg:w-80">
           <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
             <CalendarIcon className="h-4 w-4 text-gray-500" />
             {selectedKey
@@ -280,17 +336,21 @@ export default function Calendar() {
               Prazo legal vencido
             </div>
           </div>
-          <div className="mt-4 border-t border-gray-100 pt-4 space-y-3 max-h-[28rem] overflow-y-auto">
+          <div className="soft-scrollbar mt-4 max-h-[28rem] space-y-3 overflow-y-auto border-t border-gray-100 pt-4">
             {!selectedKey && (
               <p className="text-sm text-gray-500">Clique num dia na grelha para ver o detalhe.</p>
             )}
             {selectedKey && selectedEvents.length === 0 && (
-              <p className="text-sm text-gray-500">Sem eventos neste dia.</p>
+              <p className="text-sm text-gray-500">
+                {eventFilter === 'all'
+                  ? 'Sem eventos neste dia.'
+                  : 'Sem eventos deste tipo neste dia — altere o filtro ou escolha outra data.'}
+              </p>
             )}
             {selectedEvents.map((ev) => (
               <div
                 key={ev.key}
-                className="rounded-lg border border-gray-100 bg-slate-50/80 px-3 py-2 text-sm"
+                className="rounded-2xl border border-gray-100 bg-[#f8f6f1] px-3 py-2 text-sm"
               >
                 <div className="flex items-start gap-2">
                   {ev.kind === 'prazo_final' ? (

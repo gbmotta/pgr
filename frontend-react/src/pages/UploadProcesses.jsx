@@ -4,6 +4,7 @@ import axios from 'axios'
 import { Upload, FileSpreadsheet, Link as LinkIcon, FileUp, FileDown, Grid3x3, Eye, AlertCircle, CheckCircle, X, Plus, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { API_URL } from '@/lib/apiConfig'
+import { cn } from '@/lib/utils'
 
 /** Mensagem legível a partir de error.response.data.detail (FastAPI). */
 function formatApiDetail(detail) {
@@ -386,6 +387,17 @@ export default function UploadProcesses() {
     previewGoogleDriveMutation.isPending ||
     gridImportMutation.isPending
 
+  const gridReady = gridRows.some(
+    (r) => (r.processo_adm_1doc || '').trim() || (r.processo_judicial || '').trim()
+  )
+  const fileOrLinkReady =
+    uploadMode === 'file'
+      ? !!file
+      : uploadMode === 'google_drive'
+        ? googleDriveLink.trim().length > 0
+        : gridReady
+  const importFlowStep = uploadMode === 'grid' ? (gridReady ? 3 : 2) : fileOrLinkReady ? 3 : 2
+
   const updateGridCell = (rowIndex, key, value) => {
     setGridRows((prev) => {
       const next = [...prev]
@@ -485,14 +497,18 @@ export default function UploadProcesses() {
   }, [uploadMode])
 
   return (
-    <div className="h-full px-4 sm:px-6 lg:px-8 py-6 overflow-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Upload de Processos</h1>
-        <p className="mt-2 text-gray-600">
+    <div className="h-full overflow-auto py-6">
+      <section className="surface-panel mb-8 px-6 py-6 lg:px-8">
+        <span className="hero-badge">
+          <Upload className="h-3.5 w-3.5" />
+          Entrada de dados
+        </span>
+        <h1 className="page-title mt-4">Importar dados</h1>
+        <p className="page-subtitle mt-3">
           Preencha a planilha aqui no PGR, envie um ficheiro ou ligue o Google Sheets — os processos ficam
           sempre associados à sua conta.
         </p>
-        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 max-w-3xl">
+        <div className="mt-5 max-w-3xl rounded-2xl border border-[#d8e0e7] bg-[#f8fbfd] px-4 py-3 text-sm text-slate-700">
           <p className="font-medium text-slate-800">Privacidade e dados</p>
           <p className="mt-1">
             Cada conta PGR vê apenas os seus processos. No modo ficheiro, a planilha não sai do seu
@@ -500,12 +516,11 @@ export default function UploadProcesses() {
             planilha permanece no Google Drive; a service account só acede ao que partilhar como leitor.
           </p>
         </div>
-      </div>
+      </section>
 
       <div className={`mx-auto ${uploadMode === 'grid' ? 'max-w-[90rem]' : 'max-w-4xl'}`}>
-        {/* Tabs */}
-        <div className="mb-6 border-b border-gray-200">
-          <nav className="-mb-px flex flex-wrap gap-x-6 gap-y-2">
+        <div className="surface-panel mb-6 p-3">
+          <nav className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => {
@@ -515,9 +530,9 @@ export default function UploadProcesses() {
               }}
               className={`${
                 uploadMode === 'grid'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
+                  ? 'pill-button pill-button-active'
+                  : 'pill-button pill-button-idle'
+              } whitespace-nowrap`}
             >
               <Grid3x3 className="h-5 w-5" />
               <span>Planilha no PGR</span>
@@ -531,9 +546,9 @@ export default function UploadProcesses() {
               }}
               className={`${
                 uploadMode === 'file'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
+                  ? 'pill-button pill-button-active'
+                  : 'pill-button pill-button-idle'
+              } whitespace-nowrap`}
             >
               <FileUp className="h-5 w-5" />
               <span>Só ficheiro (sem Google)</span>
@@ -547,15 +562,83 @@ export default function UploadProcesses() {
               }}
               className={`${
                 uploadMode === 'google_drive'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
+                  ? 'pill-button pill-button-active'
+                  : 'pill-button pill-button-idle'
+              } whitespace-nowrap`}
             >
               <LinkIcon className="h-5 w-5" />
               <span>Google Sheets + partilha</span>
             </button>
           </nav>
         </div>
+
+        <ol
+          className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm"
+          aria-label="Passos da importação"
+        >
+          <li
+            className="flex items-center gap-2 font-medium text-emerald-700"
+            aria-label="Passo 1: modo de importação (separadores acima)"
+          >
+            <span
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white"
+              aria-hidden
+            >
+              ✓
+            </span>
+            Separador escolhido
+          </li>
+          <span className="hidden text-slate-300 sm:inline" aria-hidden>
+            →
+          </span>
+          <li
+            className={cn(
+              'flex items-center gap-2',
+              importFlowStep === 2 ? 'font-semibold text-blue-800' : 'text-slate-500'
+            )}
+            aria-current={importFlowStep === 2 ? 'step' : undefined}
+          >
+            <span
+              className={cn(
+                'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                importFlowStep === 2
+                  ? 'bg-blue-600 text-white ring-2 ring-blue-200 ring-offset-2'
+                  : 'bg-slate-200 text-slate-600'
+              )}
+              aria-hidden
+            >
+              2
+            </span>
+            {uploadMode === 'grid'
+              ? 'Preencher a grelha'
+              : uploadMode === 'file'
+                ? 'Selecionar ficheiro e pré-visualizar'
+                : 'Colar link e pré-visualizar'}
+          </li>
+          <span className="hidden text-slate-300 sm:inline" aria-hidden>
+            →
+          </span>
+          <li
+            className={cn(
+              'flex items-center gap-2',
+              importFlowStep === 3 ? 'font-semibold text-blue-800' : 'text-slate-500'
+            )}
+            aria-current={importFlowStep === 3 ? 'step' : undefined}
+          >
+            <span
+              className={cn(
+                'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                importFlowStep === 3
+                  ? 'bg-blue-600 text-white ring-2 ring-blue-200 ring-offset-2'
+                  : 'bg-slate-200 text-slate-600'
+              )}
+              aria-hidden
+            >
+              3
+            </span>
+            Importar para o PGR
+          </li>
+        </ol>
 
         {/* Modo: planilha editável no browser */}
         {uploadMode === 'grid' && (

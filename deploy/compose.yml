@@ -1,0 +1,47 @@
+services:
+  pgr-app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: pgr-app
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      - PORT=8001
+    volumes:
+      - pgr_data:/app/data
+      - pgr_uploads:/app/uploads
+      - pgr_reports:/app/reports
+    expose:
+      - "8001"
+    networks:
+      - pgr_net
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: pgr-caddy
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - pgr-app
+    networks:
+      - pgr_net
+
+volumes:
+  pgr_data:
+  pgr_uploads:
+  pgr_reports:
+  caddy_data:
+  caddy_config:
+
+networks:
+  pgr_net:

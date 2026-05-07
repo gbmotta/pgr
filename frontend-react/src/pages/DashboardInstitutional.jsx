@@ -1,14 +1,25 @@
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { 
   Search,
   Filter,
-  X
+  X,
+  FolderOpen,
+  Upload,
+  AlertTriangle,
+  CalendarDays,
+  FileBarChart2,
+  ArrowRight,
+  Scale,
+  SlidersHorizontal,
 } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import LegalProcessTable from '../components/tables/LegalProcessTable'
 import { API_URL } from '@/lib/apiConfig'
+import { EmptyState } from '@/components/ui/empty-state'
+import { DashboardTableSkeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
 
 const parsePrazoDate = (prazoStr) => {
   if (!prazoStr) return null
@@ -40,6 +51,7 @@ const parseMesAno = (mesAnoStr) => {
 
 export default function DashboardInstitutional() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [searchTerm, setSearchTerm] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [filterPrazoInicio, setFilterPrazoInicio] = useState('')
@@ -47,11 +59,26 @@ export default function DashboardInstitutional() {
   const [filterDataRecebimento, setFilterDataRecebimento] = useState('')
   const alertWindowDays = 7 // Dias antes do prazo para alertar
 
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q != null && q !== '') {
+      setSearchTerm(q)
+    }
+  }, [searchParams])
+
   const { data: processes = [], isLoading } = useQuery({
     queryKey: ['processes'],
     queryFn: async () => {
       const response = await axios.get(`${API_URL}/processes`)
       return response.data || []
+    },
+  })
+
+  const { data: statistics } = useQuery({
+    queryKey: ['statistics-dashboard'],
+    queryFn: async () => {
+      const response = await axios.get(`${API_URL}/statistics/summary`)
+      return response.data
     },
   })
 
@@ -113,6 +140,39 @@ export default function DashboardInstitutional() {
 
   const hasActiveFilters = searchTerm || filterPrazoInicio || filterPrazoFim || filterDataRecebimento
 
+  const processHealth = useMemo(() => {
+    const summary = {
+      critical: 0,
+      upcoming: 0,
+      withoutDeadline: 0,
+    }
+
+    filteredProcesses.forEach((proc) => {
+      const prazoDate = parsePrazoDate(proc.prazo_final)
+      if (!prazoDate) {
+        summary.withoutDeadline += 1
+        return
+      }
+      const today = new Date()
+      const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+      const daysUntil = Math.ceil((prazoDate - normalizedToday) / (1000 * 60 * 60 * 24))
+      if (daysUntil <= 7) {
+        summary.critical += 1
+      } else if (daysUntil <= 30) {
+        summary.upcoming += 1
+      }
+    })
+
+    return summary
+  }, [filteredProcesses])
+
+  const activeFilterChips = [
+    searchTerm ? `Pesquisa: "${searchTerm}"` : null,
+    filterPrazoInicio ? `Prazo de ${filterPrazoInicio}` : null,
+    filterPrazoFim ? `Prazo até ${filterPrazoFim}` : null,
+    filterDataRecebimento ? `Recebimento ${filterDataRecebimento}` : null,
+  ].filter(Boolean)
+
 
   const expandableContent = (row) => (
     <div className="space-y-4 py-2">
@@ -137,47 +197,154 @@ export default function DashboardInstitutional() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-institutional-dark"></div>
+      <div className="space-y-6">
+        <div className="bg-white border border-neutral-border p-6 rounded-lg">
+          <DashboardTableSkeleton />
+        </div>
       </div>
     )
   }
 
+  const emptyTableContent =
+    processes.length === 0 ? (
+      <EmptyState
+        icon={FolderOpen}
+        title="Ainda não tem processos nesta conta"
+        description="Importe uma planilha (Excel, CSV ou Google Sheets), use a grelha no PGR ou carregue um ficheiro na página de importação."
+      >
+        <Button asChild>
+          <Link to="/upload">
+            <Upload className="h-4 w-4 mr-2 inline" aria-hidden />
+            Ir para importar dados
+          </Link>
+        </Button>
+      </EmptyState>
+    ) : (
+      <EmptyState
+        icon={Search}
+        title="Nenhum processo corresponde aos filtros"
+        description="Ajuste a pesquisa ou limpe os filtros para voltar a ver todos os processos."
+      >
+        <Button type="button" variant="secondary" onClick={clearFilters}>
+          Limpar pesquisa e filtros
+        </Button>
+      </EmptyState>
+    )
+
   return (
     <div className="space-y-6">
-      {/* Cabeçalho */}
-      <div className="bg-white border border-neutral-border p-6">
-        <div className="flex items-center justify-between">
+      <section className="surface-panel overflow-hidden">
+        <div className="grid gap-6 px-6 py-6 lg:grid-cols-[1.5fr_0.9fr] lg:px-8">
           <div>
-            <h1 className="text-2xl font-bold text-neutral-text-primary mb-1">
-              Controle de Processos Administrativos
-            </h1>
-            <p className="text-xs text-neutral-text-secondary">
-              Sistema de Gestão de Processos Administrativos e Judiciais
+            <span className="hero-badge">
+              <Scale className="h-3.5 w-3.5" />
+              Operação jurídica central
+            </span>
+            <h1 className="page-title mt-4">Controle de Processos Administrativos</h1>
+            <p className="page-subtitle mt-3">
+              Acompanhe a carteira processual com leitura rápida de prazos, filtros mais claros e acesso
+              direto às ações mais frequentes da equipa.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Button asChild>
+                <Link to="/upload">
+                  <Upload className="h-4 w-4" />
+                  Importar novos dados
+                </Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link to="/reports">
+                  <FileBarChart2 className="h-4 w-4" />
+                  Abrir relatórios
+                </Link>
+              </Button>
+              <Button variant="secondary" asChild>
+                <Link to="/calendar">
+                  <CalendarDays className="h-4 w-4" />
+                  Ver calendário
+                </Link>
+              </Button>
+            </div>
+          </div>
+          <div className="surface-panel-muted flex flex-col justify-between p-5">
+            <div>
+              <p className="section-kicker">Resumo da carteira</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                <div className="rounded-2xl bg-white px-4 py-3">
+                  <div className="metric-label">Processos visíveis</div>
+                  <div className="mt-2 text-3xl font-semibold text-[#182534]">{filteredProcesses.length}</div>
+                </div>
+                <div className="rounded-2xl bg-white px-4 py-3">
+                  <div className="metric-label">Prazos críticos</div>
+                  <div className="mt-2 text-3xl font-semibold text-[#a53b2d]">{processHealth.critical}</div>
+                </div>
+                <div className="rounded-2xl bg-white px-4 py-3">
+                  <div className="metric-label">Sem prazo final</div>
+                  <div className="mt-2 text-3xl font-semibold text-[#6d7785]">{processHealth.withoutDeadline}</div>
+                </div>
+              </div>
+            </div>
+            <p className="mt-4 text-sm leading-6 text-[#5f6d7d]">
+              Total geral da conta: <strong>{statistics?.total_processes ?? processes.length}</strong>. Use os
+              filtros abaixo para refinar a triagem.
             </p>
           </div>
-          <div className="text-right">
-            <div className="text-xs text-neutral-text-secondary uppercase tracking-wide mb-1">
-              Total de processos
-            </div>
-            <div className="text-2xl font-bold text-institutional-dark">{filteredProcesses.length}</div>
-          </div>
         </div>
-      </div>
+      </section>
 
-      {/* Barra de busca e filtros */}
-      <div className="bg-white border border-neutral-border p-6">
+      <section className="grid gap-4 md:grid-cols-3">
+        <article className="metric-card">
+          <div className="flex items-center justify-between">
+            <span className="metric-label">Prazos críticos</span>
+            <AlertTriangle className="h-5 w-5 text-[#a53b2d]" />
+          </div>
+          <div className="metric-value">{processHealth.critical}</div>
+          <p className="metric-note">Processos com prazo final já vencido ou dentro dos próximos 7 dias.</p>
+        </article>
+        <article className="metric-card">
+          <div className="flex items-center justify-between">
+            <span className="metric-label">Janela de atenção</span>
+            <CalendarDays className="h-5 w-5 text-[#9a6b14]" />
+          </div>
+          <div className="metric-value">{processHealth.upcoming}</div>
+          <p className="metric-note">Itens que entram na zona de atenção entre 8 e 30 dias.</p>
+        </article>
+        <article className="metric-card">
+          <div className="flex items-center justify-between">
+            <span className="metric-label">Fluxo operacional</span>
+            <ArrowRight className="h-5 w-5 text-[#345a7c]" />
+          </div>
+          <div className="metric-value">{hasActiveFilters ? filteredProcesses.length : processes.length}</div>
+          <p className="metric-note">
+            {hasActiveFilters ? 'Resultados após aplicar os filtros atuais.' : 'Base completa pronta para triagem.'}
+          </p>
+        </article>
+      </section>
+
+      <section className="surface-panel p-6">
         <div className="space-y-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="section-kicker">Pesquisa e refinamento</p>
+              <h2 className="mt-1 text-xl font-semibold text-[#182534]">Encontre processos sem perder contexto</h2>
+            </div>
+            <Button type="button" variant="outline" onClick={() => setShowFilters(!showFilters)}>
+              <SlidersHorizontal className="h-4 w-4" />
+              {showFilters ? 'Recolher filtros' : 'Abrir filtros avançados'}
+            </Button>
+          </div>
+
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-neutral-text-tertiary" />
+              <Search className="h-5 w-5 text-neutral-text-tertiary" aria-hidden />
             </div>
             <input
-              type="text"
-              className="institutional-input pl-12 pr-10"
+              type="search"
+              className="institutional-input !pl-12 !pr-10 !rounded-2xl !border-[#d4dbe3] !bg-[#fcfcfb] !py-3 !shadow-[0_10px_20px_-24px_rgba(15,23,42,0.6)]"
               placeholder="Buscar por PROCESSO ADM 1DOC, PROCESSO JUDICIAL, PARTES, TEMA, PRAZO, TIPO DE ATO..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              aria-label="Pesquisar processos"
             />
             {searchTerm && (
               <button
@@ -190,27 +357,33 @@ export default function DashboardInstitutional() {
           </div>
 
           <div className="flex items-center justify-between">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center space-x-2 text-institutional-primary hover:text-institutional-dark font-medium"
-            >
+            <div className="flex items-center gap-2 text-sm text-[#637081]">
               <Filter className="h-5 w-5" />
-              <span>Filtros Avançados</span>
-              {showFilters ? '↑' : '↓'}
-            </button>
+              <span>{hasActiveFilters ? 'Filtros ativos aplicados' : 'Nenhum filtro além da pesquisa textual'}</span>
+            </div>
             
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="text-xs text-status-indeferido hover:text-status-vencido font-medium"
+                className="text-xs font-medium text-status-indeferido hover:text-status-vencido"
               >
                 Limpar filtros
               </button>
             )}
           </div>
 
+          {activeFilterChips.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {activeFilterChips.map((chip) => (
+                <span key={chip} className="filter-chip">
+                  {chip}
+                </span>
+              ))}
+            </div>
+          )}
+
           {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-neutral-border">
+            <div className="grid grid-cols-1 gap-4 border-t border-neutral-border pt-4 md:grid-cols-3">
               <div>
                 <label className="label">Prazo Final (De): DD/MM</label>
                 <input
@@ -244,10 +417,19 @@ export default function DashboardInstitutional() {
             </div>
           )}
         </div>
-      </div>
+      </section>
 
-      {/* Tabela de Processos - Densa Jurídica */}
-      <div className="w-full">
+      <section className="space-y-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="section-kicker">Lista operacional</p>
+            <h2 className="text-xl font-semibold text-[#182534]">Processos filtrados</h2>
+          </div>
+          <p className="text-sm text-[#627182]">
+            {filteredProcesses.length} resultado(s) {hasActiveFilters ? 'com filtros ativos' : 'na base atual'}.
+          </p>
+        </div>
+
         <LegalProcessTable
           data={filteredProcesses}
           onRowClick={(row) => {
@@ -259,8 +441,9 @@ export default function DashboardInstitutional() {
           expandableContent={expandableContent}
           keyField="id"
           alertWindowDays={alertWindowDays}
+          emptyContent={emptyTableContent}
         />
-      </div>
+      </section>
     </div>
   )
 }
