@@ -2,50 +2,88 @@
 @tailwind components;
 @tailwind utilities;
 
+/**
+ * Design tokens — regra 60-30-10 e código jurídico (fundos gelo/branco, primário #1B365D).
+ * Modo escuro: fundo #121212, superfície #1E1E1E, texto #E0E0E0.
+ */
 @layer base {
   :root {
-    --background: 42 43% 98%;
-    --foreground: 213 31% 16%;
+    /* 60% — fundo principal (gelo) */
+    --background: 165 14% 96%;
+    /* Texto principal — nunca preto puro */
+    --foreground: 210 29% 24%;
+
     --card: 0 0% 100%;
-    --card-foreground: 213 31% 16%;
+    --card-foreground: 210 29% 24%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 213 31% 16%;
-    --primary: 212 40% 20%;
-    --primary-foreground: 42 50% 98%;
-    --secondary: 210 22% 94%;
-    --secondary-foreground: 213 31% 20%;
-    --muted: 40 22% 94%;
-    --muted-foreground: 214 14% 39%;
-    --accent: 36 62% 92%;
-    --accent-foreground: 213 31% 18%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 210 18% 87%;
-    --input: 210 20% 88%;
-    --ring: 205 60% 41%;
+    --popover-foreground: 210 29% 24%;
+
+    /* 10% — primário institucional (azul marinho) */
+    --primary: 216 55% 24%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 165 12% 93%;
+    --secondary-foreground: 210 29% 24%;
+
+    --muted: 165 10% 92%;
+    --muted-foreground: 184 7% 53%;
+
+    --accent: 48 89% 94%;
+    --accent-foreground: 210 29% 22%;
+
+    --destructive: 6 63% 46%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    /* Foco / links — azul royal */
+    --ring: 204 70% 41%;
+
     --radius: 1rem;
+
+    /* Tokens nomeados (hex) para uso em arbitrary ou JS */
+    --pgr-ice: #f4f7f6;
+    --pgr-surface: #ffffff;
+    --pgr-navy: #1b365d;
+    --pgr-border: #e0e0e0;
+    --pgr-text: #2c3e50;
+    --pgr-text-muted: #7f8c8d;
+    --pgr-success: #27ae60;
+    --pgr-warning: #e67e22;
+    --pgr-error: #c0392b;
+    --pgr-info: #2980b9;
+    --pgr-highlight: #f1c40f;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --background: 0 0% 7%;
+    --foreground: 0 0% 88%;
+
+    --card: 0 0% 12%;
+    --card-foreground: 0 0% 88%;
+
+    --popover: 0 0% 12%;
+    --popover-foreground: 0 0% 88%;
+
+    --primary: 204 62% 52%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 16%;
+    --secondary-foreground: 0 0% 88%;
+
+    --muted: 0 0% 18%;
+    --muted-foreground: 0 0% 65%;
+
+    --accent: 0 0% 18%;
+    --accent-foreground: 0 0% 88%;
+
+    --destructive: 6 55% 48%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 22%;
+    --input: 0 0% 22%;
+    --ring: 204 62% 52%;
   }
 }
 
@@ -53,16 +91,17 @@
   * {
     @apply border-border;
   }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
     margin: 0;
-    font-family: "Aptos", "IBM Plex Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-    background-image:
-      radial-gradient(circle at top left, rgba(201, 169, 110, 0.12), transparent 28%),
-      radial-gradient(circle at top right, rgba(60, 86, 120, 0.1), transparent 24%),
-      linear-gradient(180deg, #f8f6f1 0%, #f6f4ef 42%, #f3f1ec 100%);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    font-family: 'Roboto', 'Segoe UI', -apple-system, sans-serif;
+    /* Reforço do gelo (60%) — gradiente muito suave */
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--background)) 0%,
+      hsl(165 12% 94%) 100%
+    );
   }
 
   #root {
@@ -70,8 +109,7 @@
   }
 
   code {
-    font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-      monospace;
+    font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
   }
 
   :focus-visible {
@@ -87,30 +125,38 @@
 
 @layer components {
   .surface-panel {
-    @apply rounded-3xl border border-[#d7dce4] bg-white shadow-[0_14px_40px_-26px_rgba(31,45,61,0.42)] backdrop-blur-sm;
-    background-color: rgba(255, 255, 255, 0.92);
+    @apply rounded-3xl border bg-card text-card-foreground shadow-[0_14px_40px_-26px_rgba(27,54,93,0.12)] backdrop-blur-sm;
+    border-color: var(--pgr-border);
+    background-color: color-mix(in srgb, hsl(var(--card)) 96%, transparent);
   }
 
   .surface-panel-muted {
-    @apply rounded-3xl border border-[#dde2e8] shadow-[0_10px_30px_-24px_rgba(31,45,61,0.38)];
-    background-color: rgba(251, 250, 247, 0.95);
+    @apply rounded-3xl border shadow-[0_10px_30px_-24px_rgba(27,54,93,0.1)] backdrop-blur-sm;
+    border-color: var(--pgr-border);
+    background-color: color-mix(in srgb, var(--pgr-ice) 85%, white);
   }
 
   .section-kicker {
-    @apply text-[11px] font-semibold uppercase tracking-[0.24em] text-[#7e6a47];
+    @apply text-[11px] font-semibold uppercase tracking-[0.24em];
+    color: var(--pgr-text-muted);
   }
 
   .page-title {
-    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
-    @apply text-3xl font-semibold tracking-[-0.02em] text-[#182534] md:text-4xl;
+    font-family: 'Playfair Display', 'Palatino Linotype', Georgia, serif;
+    @apply text-3xl font-semibold tracking-[-0.02em] md:text-4xl;
+    color: var(--pgr-text);
   }
 
   .page-subtitle {
-    @apply max-w-3xl text-sm leading-6 text-[#5c6877] md:text-[15px];
+    @apply max-w-3xl text-sm leading-6 md:text-[15px];
+    color: var(--pgr-text-muted);
   }
 
   .hero-badge {
-    @apply inline-flex items-center gap-2 rounded-full border border-[#d7c6a1] bg-[#f8f0df] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6f5630];
+    @apply inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em];
+    border-color: color-mix(in srgb, var(--pgr-highlight) 45%, var(--pgr-border));
+    background-color: color-mix(in srgb, var(--pgr-highlight) 18%, white);
+    color: color-mix(in srgb, var(--pgr-text) 70%, var(--pgr-navy));
   }
 
   .metric-card {
@@ -118,19 +164,24 @@
   }
 
   .metric-value {
-    @apply mt-3 text-3xl font-semibold tracking-[-0.03em] text-[#182534];
+    @apply mt-3 text-3xl font-semibold tracking-[-0.03em];
+    color: var(--pgr-text);
   }
 
   .metric-label {
-    @apply text-xs font-medium uppercase tracking-[0.18em] text-[#66717f];
+    @apply text-xs font-medium uppercase tracking-[0.18em];
+    color: var(--pgr-text-muted);
   }
 
   .metric-note {
-    @apply mt-2 text-sm text-[#607081];
+    @apply mt-2 text-sm;
+    color: color-mix(in srgb, var(--pgr-text) 55%, var(--pgr-text-muted));
   }
 
   .filter-chip {
-    @apply inline-flex items-center gap-2 rounded-full border border-[#d8dee6] bg-white px-3 py-1.5 text-xs font-medium text-[#435160];
+    @apply inline-flex items-center gap-2 rounded-full border bg-[var(--pgr-surface)] px-3 py-1.5 text-xs font-medium;
+    border-color: var(--pgr-border);
+    color: var(--pgr-text);
   }
 
   .pill-button {
@@ -138,11 +189,11 @@
   }
 
   .pill-button-active {
-    @apply bg-[#1e3347] text-white shadow-sm;
+    @apply bg-primary text-primary-foreground shadow-sm;
   }
 
   .pill-button-idle {
-    @apply bg-[#eef1f5] text-[#44515f] hover:bg-[#e2e8ef];
+    @apply bg-muted text-foreground hover:bg-muted/80;
   }
 
   .soft-scrollbar::-webkit-scrollbar {
@@ -151,7 +202,7 @@
   }
 
   .soft-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(90, 104, 122, 0.3);
+    background: color-mix(in srgb, var(--pgr-text-muted) 35%, transparent);
     border-radius: 999px;
     border: 2px solid transparent;
     background-clip: padding-box;

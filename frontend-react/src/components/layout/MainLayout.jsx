@@ -28,7 +28,7 @@ function NavBadge({ count }) {
   if (count == null || count < 1) return null
   const label = count > 99 ? '99+' : String(count)
   return (
-    <span className="ml-auto inline-flex min-w-[1.25rem] justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-[#1A2B3C]">
+    <span className="ml-auto inline-flex min-w-[1.25rem] justify-center rounded-full bg-pgr-highlight px-1.5 py-0.5 text-[10px] font-bold leading-none text-pgr-navy">
       {label}
     </span>
   )
@@ -164,10 +164,10 @@ export default function MainLayout() {
   }
 
   return (
-    <div className="flex min-h-screen overflow-hidden bg-transparent text-[#1b2838]">
+    <div className="flex min-h-screen overflow-hidden bg-transparent text-pgr-text">
       {isMobile && sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-[#09121d]/50 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-pgr-navy-deep/45 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
         />
@@ -177,7 +177,7 @@ export default function MainLayout() {
         className={`
           fixed inset-y-0 left-0 z-50
           lg:static
-          border-r border-white/10 bg-[linear-gradient(180deg,#162536_0%,#1c3044_55%,#182534_100%)] text-white shadow-2xl
+          border-r border-white/10 bg-[linear-gradient(180deg,#142946_0%,#1B365D_52%,#152a42_100%)] text-white shadow-2xl
           transition-all duration-300 ease-in-out
           w-64
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -213,7 +213,7 @@ export default function MainLayout() {
               </div>
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-white/60">Prazos críticos</span>
-                <span className="font-semibold text-amber-300">{overdueLegal}</span>
+                <span className="font-semibold text-pgr-highlight">{overdueLegal}</span>
               </div>
             </div>
           )}
@@ -245,7 +245,7 @@ export default function MainLayout() {
                     `}
                     title={!sidebarOpen ? item.label : undefined}
                   >
-                    <Icon className={`h-5 w-5 flex-shrink-0 ${active ? 'text-amber-200' : 'text-white/70'}`} />
+                    <Icon className={`h-5 w-5 flex-shrink-0 ${active ? 'text-pgr-highlight' : 'text-white/70'}`} />
                     {sidebarOpen && (
                       <>
                         <span className={`flex-1 text-left text-sm font-medium ${active ? 'font-semibold' : ''}`}>
@@ -290,14 +290,14 @@ export default function MainLayout() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="z-30 flex-shrink-0 border-b border-[#d8dde5] bg-[#f8f6f1]/92 backdrop-blur-sm">
+        <header className="z-30 flex-shrink-0 border-b border-pgr-border bg-pgr-surface/95 backdrop-blur-sm">
           <div className="flex min-h-16 flex-col gap-4 px-4 py-4 lg:px-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
-                <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-medium text-[#6a7686]">
+                <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-medium text-pgr-muted">
                   {breadcrumbItems.map((item, idx) => (
                     <span key={`${item}-${idx}`} className="inline-flex items-center gap-2">
-                      {idx > 0 && <ChevronRight className="h-3.5 w-3.5 text-[#95a1b1]" aria-hidden />}
+                      {idx > 0 && <ChevronRight className="h-3.5 w-3.5 text-pgr-muted" aria-hidden />}
                       <span>{item}</span>
                     </span>
                   ))}
@@ -306,7 +306,7 @@ export default function MainLayout() {
               <button
                 type="button"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                    className="hidden rounded-xl border border-[#d5dbe4] bg-white/85 p-2 text-[#586576] transition-colors hover:text-[#1d2e40] lg:inline-flex"
+                    className="hidden rounded-xl border border-pgr-border bg-pgr-surface p-2 text-pgr-muted transition-colors hover:text-pgr-text lg:inline-flex"
                 aria-label={sidebarOpen ? 'Colapsar menu lateral' : 'Expandir menu lateral'}
                 aria-expanded={sidebarOpen}
               >
@@ -315,32 +315,32 @@ export default function MainLayout() {
               <button
                 type="button"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                    className="rounded-xl border border-[#d5dbe4] bg-white/85 p-2 text-[#586576] transition-colors hover:text-[#1d2e40] lg:hidden"
+                    className="rounded-xl border border-pgr-border bg-pgr-surface p-2 text-pgr-muted transition-colors hover:text-pgr-text lg:hidden"
                 aria-label="Abrir menu"
               >
                 <Menu className="h-6 w-6" />
               </button>
 
                   <div className="min-w-0">
-              <h1 className="truncate font-serif text-2xl font-semibold text-[#182534] sm:text-[2rem]">
+              <h1 className="truncate font-serif text-2xl font-semibold text-pgr-text sm:text-[2rem]">
                 {getPageTitle()}
               </h1>
-                    <p className="mt-1 text-sm text-[#66717f] capitalize">{todayLabel}</p>
+                    <p className="mt-1 text-sm text-pgr-muted capitalize">{todayLabel}</p>
                   </div>
                 </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
                 <span className="filter-chip">
-                  <ShieldCheck className="h-4 w-4 text-emerald-700" />
+                  <ShieldCheck className="h-4 w-4 text-pgr-success" />
                   Conta isolada
                 </span>
                 <span className="filter-chip">
-                  <BellRing className="h-4 w-4 text-amber-700" />
+                  <BellRing className="h-4 w-4 text-pgr-warning" />
                   {overdueLegal} alerta(s)
                 </span>
                 <span className="filter-chip">
-                  <FileText className="h-4 w-4 text-[#1e3347]" />
+                  <FileText className="h-4 w-4 text-pgr-navy" />
                   {totalProcesses} processos
                 </span>
               </div>
@@ -356,20 +356,20 @@ export default function MainLayout() {
                 Pesquisar nos seus processos
               </label>
               <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7b8795]" aria-hidden />
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-pgr-muted" aria-hidden />
                 <input
                   id="global-search"
                   type="search"
                   value={globalSearch}
                   onChange={(e) => setGlobalSearch(e.target.value)}
                   placeholder="Pesquisar processos…"
-                  className="h-11 w-full rounded-2xl border border-[#d4dbe3] bg-white/92 py-2 pl-11 pr-3 text-sm text-[#182534] placeholder:text-[#7b8795] shadow-[0_10px_24px_-22px_rgba(15,23,42,0.45)] focus:border-[#2d5678] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#95b7d2]/25"
+                  className="h-11 w-full rounded-2xl border border-pgr-border bg-pgr-surface py-2 pl-11 pr-3 text-sm text-pgr-text placeholder:text-pgr-muted shadow-[0_10px_24px_-22px_rgba(27,54,93,0.12)] focus:border-pgr-info focus:bg-pgr-surface focus:outline-none focus:ring-4 focus:ring-pgr-info/20"
                   autoComplete="off"
                 />
               </div>
               <button
                 type="submit"
-                className="shrink-0 rounded-2xl bg-[#1d3348] px-5 py-2 text-sm font-medium text-white shadow-[0_14px_24px_-18px_rgba(15,23,42,0.7)] transition hover:-translate-y-0.5 hover:bg-[#243c53] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d5678] focus-visible:ring-offset-2"
+                className="shrink-0 rounded-2xl bg-pgr-navy px-5 py-2 text-sm font-medium text-white shadow-[0_14px_24px_-18px_rgba(27,54,93,0.45)] transition hover:-translate-y-0.5 hover:bg-pgr-navy-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pgr-info focus-visible:ring-offset-2"
               >
                 Ir
               </button>
