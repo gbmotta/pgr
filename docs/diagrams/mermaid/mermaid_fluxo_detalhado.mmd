@@ -1,0 +1,50 @@
+%% Fluxograma detalhado PGR — rotas, auth, importação e módulos backend (uma vista única)
+flowchart TB
+  subgraph React["frontend-react"]
+    RQ["TanStack Query"]
+    PG["Páginas: dashboard, upload, calendar, reports, settings…"]
+    AUTH["AuthContext — JWT"]
+    RQ --> PG
+    AUTH --> RQ
+  end
+
+  subgraph Gate["Pedido HTTP"]
+    JWT{"Bearer válido?"}
+    JWT -->|não| E401["401 Unauthorized"]
+    JWT -->|sim| OWN["Filtro owner_user_id"]
+  end
+
+  subgraph Import["Importação — UploadProcesses"]
+    GRELHA["Grelha → POST /api/processes/import-grid"]
+    FILE["Ficheiro → preview-upload + upload-excel"]
+    DRV["Google Drive → preview-google-sheets + upload-from-google-drive"]
+    GRELHA & FILE & DRV --> ING["ingestion / spreadsheet_ingestion"]
+    DRV --> LINK["Opcional: POST /api/sheets/link"]
+  end
+
+  subgraph FastAPI["api_sqlalchemy.py"]
+    RT["Rotas REST"]
+    RT --> OWN
+    OWN --> SVC2["Serviços"]
+  end
+
+  subgraph Servicos["Módulos backend"]
+    A["auth"]
+    M["models_sqlalchemy"]
+    I["ingestion / spreadsheet_ingestion"]
+    SH["sheets_service"]
+    WH["webhook_handler"]
+    DR["drive_service / google_drive_utils"]
+    DL["deadline_awareness"]
+    AL["alert_service"]
+    AU["audit_service"]
+  end
+
+  PG -->|axios| RT
+  PG --> Import
+  SVC2 --> A & M & I & SH & WH & DR & DL & AL & AU
+  ING --> M
+  LINK --> SH
+  WH --> SH
+  A & I & SH & WH & DR & DL & AL & AU --> M
+  M --> DB[("SQLite + ficheiros")]

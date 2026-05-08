@@ -1,0 +1,30 @@
+%% Fluxograma geral PGR — gerado para exportação Mermaid (paridade com diagrams/pyreverse)
+flowchart LR
+  subgraph Cliente
+    U["Utilizador (browser)"]
+  end
+
+  subgraph Frontend["Frontend (React + Vite)"]
+    SPA["SPA / React Router + TanStack Query"]
+  end
+
+  subgraph Backend["Backend (FastAPI)"]
+    API["api_sqlalchemy (rotas REST)"]
+    SVC["Serviços (auth, ingestion, sheets, drive, deadlines, audit…)"]
+  end
+
+  subgraph Dados["Persistência"]
+    DB[("SQLite — PGR.db")]
+    FS["Pasta uploads/ e relatórios"]
+  end
+
+  subgraph Ext["Externo (opcional)"]
+    G["Google Drive / Sheets — API + webhooks"]
+  end
+
+  U -->|HTTPS| SPA
+  SPA -->|JWT + JSON /api /processes …| API
+  API --> SVC
+  SVC --> DB
+  SVC --> FS
+  SVC <-->|OAuth / push| G

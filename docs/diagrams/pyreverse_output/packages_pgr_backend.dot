@@ -1,0 +1,41 @@
+digraph "packages_pgr_backend" {
+rankdir=BT
+charset="utf-8"
+"backend" [color="black", label=<backend>, shape="box", style="solid"];
+"backend.ai_insights" [color="black", label=<backend.ai_insights>, shape="box", style="solid"];
+"backend.alert_service" [color="black", label=<backend.alert_service>, shape="box", style="solid"];
+"backend.api_sqlalchemy" [color="black", label=<backend.api_sqlalchemy>, shape="box", style="solid"];
+"backend.audit_service" [color="black", label=<backend.audit_service>, shape="box", style="solid"];
+"backend.auth" [color="black", label=<backend.auth>, shape="box", style="solid"];
+"backend.deadline_awareness" [color="black", label=<backend.deadline_awareness>, shape="box", style="solid"];
+"backend.drive_service" [color="black", label=<backend.drive_service>, shape="box", style="solid"];
+"backend.google_auth" [color="black", label=<backend.google_auth>, shape="box", style="solid"];
+"backend.google_drive_utils" [color="black", label=<backend.google_drive_utils>, shape="box", style="solid"];
+"backend.ingestion" [color="black", label=<backend.ingestion>, shape="box", style="solid"];
+"backend.models_sqlalchemy" [color="black", label=<backend.models_sqlalchemy>, shape="box", style="solid"];
+"backend.seed_sqlalchemy" [color="black", label=<backend.seed_sqlalchemy>, shape="box", style="solid"];
+"backend.sheets_mapper" [color="black", label=<backend.sheets_mapper>, shape="box", style="solid"];
+"backend.sheets_service" [color="black", label=<backend.sheets_service>, shape="box", style="solid"];
+"backend.spreadsheet_ingestion" [color="black", label=<backend.spreadsheet_ingestion>, shape="box", style="solid"];
+"backend.utils" [color="black", label=<backend.utils>, shape="box", style="solid"];
+"backend.webhook_config" [color="black", label=<backend.webhook_config>, shape="box", style="solid"];
+"backend.webhook_handler" [color="black", label=<backend.webhook_handler>, shape="box", style="solid"];
+"backend.api_sqlalchemy" -> "backend" [arrowhead="open", arrowtail="none"];
+"backend.api_sqlalchemy" -> "backend.ai_insights" [arrowhead="open", arrowtail="none"];
+"backend.api_sqlalchemy" -> "backend.alert_service" [arrowhead="open", arrowtail="none"];
+"backend.api_sqlalchemy" -> "backend.audit_service" [arrowhead="open", arrowtail="none"];
+"backend.api_sqlalchemy" -> "backend.auth" [arrowhead="open", arrowtail="none"];
+"backend.api_sqlalchemy" -> "backend.deadline_awareness" [arrowhead="open", arrowtail="none"];
+"backend.api_sqlalchemy" -> "backend.drive_service" [arrowhead="open", arrowtail="none"];
+"backend.api_sqlalchemy" -> "backend.google_auth" [arrowhead="open", arrowtail="none"];
+"backend.api_sqlalchemy" -> "backend.google_drive_utils" [arrowhead="open", arrowtail="none"];
+"backend.api_sqlalchemy" -> "backend.ingestion" [arrowhead="open", arrowtail="none"];
+"backend.api_sqlalchemy" -> "backend.sheets_service" [arrowhead="open", arrowtail="none"];
+"backend.api_sqlalchemy" -> "backend.spreadsheet_ingestion" [arrowhead="open", arrowtail="none"];
+"backend.api_sqlalchemy" -> "backend.utils" [arrowhead="open", arrowtail="none"];
+"backend.api_sqlalchemy" -> "backend.webhook_config" [arrowhead="open", arrowtail="none"];
+"backend.api_sqlalchemy" -> "backend.webhook_handler" [arrowhead="open", arrowtail="none"];
+"backend.seed_sqlalchemy" -> "backend.models_sqlalchemy" [arrowhead="open", arrowtail="none"];
+"backend.webhook_handler" -> "backend" [arrowhead="open", arrowtail="none"];
+"backend.webhook_handler" -> "backend.audit_service" [arrowhead="open", arrowtail="none"];
+}

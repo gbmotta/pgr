@@ -1,0 +1,57 @@
+classDiagram
+  class backend {
+  }
+  class ai_insights {
+  }
+  class alert_service {
+  }
+  class api_sqlalchemy {
+  }
+  class audit_service {
+  }
+  class auth {
+  }
+  class deadline_awareness {
+  }
+  class drive_service {
+  }
+  class google_auth {
+  }
+  class google_drive_utils {
+  }
+  class ingestion {
+  }
+  class models_sqlalchemy {
+  }
+  class seed_sqlalchemy {
+  }
+  class sheets_mapper {
+  }
+  class sheets_service {
+  }
+  class spreadsheet_ingestion {
+  }
+  class utils {
+  }
+  class webhook_config {
+  }
+  class webhook_handler {
+  }
+  api_sqlalchemy --> backend
+  api_sqlalchemy --> ai_insights
+  api_sqlalchemy --> alert_service
+  api_sqlalchemy --> audit_service
+  api_sqlalchemy --> auth
+  api_sqlalchemy --> deadline_awareness
+  api_sqlalchemy --> drive_service
+  api_sqlalchemy --> google_auth
+  api_sqlalchemy --> google_drive_utils
+  api_sqlalchemy --> ingestion
+  api_sqlalchemy --> sheets_service
+  api_sqlalchemy --> spreadsheet_ingestion
+  api_sqlalchemy --> utils
+  api_sqlalchemy --> webhook_config
+  api_sqlalchemy --> webhook_handler
+  seed_sqlalchemy --> models_sqlalchemy
+  webhook_handler --> backend
+  webhook_handler --> audit_service

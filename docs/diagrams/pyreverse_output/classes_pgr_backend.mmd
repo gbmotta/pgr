@@ -1,0 +1,289 @@
+classDiagram
+  class AIInsightsService {
+    flag_potential_risks(db: Session, process_id: int) Dict[str, Any]
+    get_process_insights(db: Session, process_id: int, include_summary: bool, include_prioritization: bool, include_risks: bool) Dict[str, Any]
+    suggest_prioritization(db: Session, process_id: int, alert_window_days: int) Dict[str, Any]
+    summarize_observations(text: Optional[str], max_length: int) Dict[str, Any]
+  }
+  class AlertService {
+    MIN_ALERT_INTERVAL_HOURS : int
+    generate_alerts(db: Session, alert_window_days: int, min_interval_hours: int, scoped_user) Dict[str, List[Dict]]
+    should_alert(db: Session, process_id: int, deadline_status: Dict, min_interval_hours: int) bool
+  }
+  class AuditService {
+    get_field_history(db: Session, process_id: int, field_name: str, limit: int) List[models.ProcessChangeHistory]
+    get_field_label(field_name: str) str
+    get_process_history(db: Session, process_id: int, field_name: Optional[str], change_source: Optional[str], limit: int) List[models.ProcessChangeHistory]
+    record_change(db: Session, process_id: int, field_name: str, old_value: Any, new_value: Any, change_source: str, source_details: Optional[Dict], changed_by_user_id: Optional[int], change_type: str) models.ProcessChangeHistory
+    record_process_creation(db: Session, process_id: int, process_data: Dict, change_source: str, source_details: Optional[Dict], changed_by_user_id: Optional[int]) List[models.ProcessChangeHistory]
+    record_process_update(db: Session, process: models.Process, updated_fields: Dict, change_source: str, source_details: Optional[Dict], changed_by_user_id: Optional[int]) List[models.ProcessChangeHistory]
+  }
+  class Config {
+    from_attributes : bool
+  }
+  class Config {
+    from_attributes : bool
+  }
+  class DeadlineResponseSchema {
+    days_overdue : int
+    deadline_name : str
+    due_date : str
+    notified : bool
+    protocol_number : str
+    type_name : str
+  }
+  class Document {
+    code
+    description
+    id
+    name
+    process_documents
+    required_documents
+  }
+  class DocumentAttachment {
+    description
+    document
+    document_id
+    file_path
+    file_size
+    filename
+    id
+    mime_type
+    original_filename
+    process
+    process_document
+    process_document_id
+    process_id
+    uploaded_at
+    uploaded_by
+    uploader
+  }
+  class GoogleDriveLinkSchema {
+    url : str
+  }
+  class LegalDeadline {
+    days_limit
+    description
+    id
+    is_business_days
+    name
+    process_deadlines
+    process_type
+    start_event
+    type_id
+  }
+  class LinkedSheet {
+    channel_id
+    created_at
+    expiration
+    file_id
+    id
+    is_active
+    last_sync
+    owner_user_id
+    resource_id
+    sync_history
+    updated_at
+    url
+  }
+  class LoginSchema {
+    password : str
+    username : str
+  }
+  class PasswordChangeSchema {
+    current_password : str
+    new_password : Optional[str]
+  }
+  class Process {
+    applicant_name
+    applicant_registration
+    closed_date
+    created_date
+    data_realizacao_ato
+    data_recebimento_mes_ano
+    deadlines
+    documents
+    financial_effective_date
+    id
+    notes
+    owner
+    owner_user_id
+    parecer
+    partes
+    prazo_final
+    prazo_info_estag
+    process_type
+    processo_adm_1doc
+    processo_judicial
+    protocol_number
+    status
+    status_id
+    tema_observacoes
+    tipo_ato
+    type_id
+  }
+  class ProcessChangeHistory {
+    change_source
+    change_type
+    changed_at
+    changed_by_user
+    changed_by_user_id
+    field_label
+    field_name
+    id
+    new_value
+    old_value
+    process
+    process_id
+    processo_adm_1doc
+    processo_judicial
+    protocol_number
+    source_details
+  }
+  class ProcessCreateSchema {
+    applicant_name : Optional[str]
+    applicant_registration : Optional[str]
+    created_date : Optional[str]
+    data_realizacao_ato : Optional[str]
+    data_recebimento_mes_ano : Optional[str]
+    notes : Optional[str]
+    partes : Optional[str]
+    prazo_final : Optional[str]
+    prazo_info_estag : Optional[str]
+    processo_adm_1doc : Optional[str]
+    processo_judicial : Optional[str]
+    protocol_number : Optional[str]
+    status_code : str
+    tema_observacoes : Optional[str]
+    tipo_ato : Optional[str]
+    type_code : Optional[str]
+  }
+  class ProcessDeadline {
+    closed
+    due_date
+    id
+    legal_deadline
+    legal_deadline_id
+    notes
+    notified
+    process
+    process_id
+  }
+  class ProcessDocument {
+    document
+    document_id
+    id
+    observations
+    process
+    process_id
+    provided
+    provided_date
+    required
+  }
+  class ProcessGridImportSchema {
+    rows : List[ProcessGridRowSchema]
+  }
+  class ProcessGridRowSchema {
+    data_realizacao_ato : Optional[str]
+    data_recebimento_mes_ano : Optional[str]
+    partes : Optional[str]
+    prazo_final : Optional[str]
+    prazo_info_estag : Optional[str]
+    processo_adm_1doc : Optional[str]
+    processo_judicial : Optional[str]
+    tema_observacoes : Optional[str]
+    tipo_ato : Optional[str]
+  }
+  class ProcessResponseSchema {
+    applicant_name : Optional[str]
+    created_date : Optional[str]
+    data_realizacao_ato : Optional[str]
+    data_recebimento_mes_ano : Optional[str]
+    financial_effective_date : Optional[str]
+    id : int
+    partes : Optional[str]
+    prazo_color : Optional[str]
+    prazo_final : Optional[str]
+    prazo_info_estag : Optional[str]
+    processo_adm_1doc : Optional[str]
+    processo_judicial : Optional[str]
+    protocol_number : Optional[str]
+    status_code : Optional[str]
+    tema_observacoes : Optional[str]
+    tipo_ato : Optional[str]
+    type_code : Optional[str]
+  }
+  class ProcessType {
+    code
+    description
+    id
+    legal_deadlines
+    name
+    processes
+    required_documents
+  }
+  class RequiredDocument {
+    doc_order
+    document
+    document_id
+    id
+    process_type
+    required
+    type_id
+  }
+  class SheetSyncHistory {
+    error_message
+    errors_count
+    id
+    linked_sheet
+    linked_sheet_id
+    rows_imported
+    rows_processed
+    rows_skipped
+    rows_updated
+    status
+    sync_completed_at
+    sync_details
+    sync_started_at
+  }
+  class Status {
+    code
+    id
+    label
+    processes
+  }
+  class TokenSchema {
+    access_token : str
+    token_type : str
+    user
+  }
+  class User {
+    created_at
+    email
+    full_name
+    hashed_password
+    id
+    is_active
+    is_admin
+    owned_processes
+    username
+  }
+  class UserCreateSchema {
+    email : EmailStr
+    full_name : Optional[str]
+    password : str
+    username : str
+  }
+  class UserProfileUpdateSchema {
+    email : Optional[EmailStr]
+    full_name : Optional[str]
+  }
+  class UserResponseSchema {
+    email : str
+    full_name : Optional[str]
+    id : int
+    is_active : bool
+    is_admin : bool
+    username : str
+  }
+  TokenSchema --> UserResponseSchema : user

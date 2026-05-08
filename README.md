@@ -236,6 +236,106 @@ Recomendação mínima:
 - cópia fora da VPS
 - teste de restauração periodicamente
 
+## Modelo de dados e cardinalidades
+
+Referência: `backend/models_sqlalchemy.py` — SQLite por defeito em `data/PGR.db`.
+
+**Legenda**
+
+| Notação | Significado |
+|---------|-------------|
+| **1** | Um registo do lado “pai” (em sentido lógico da FK). |
+| **0..1** | Zero ou um (FK **nullable**). |
+| **N** | Zero ou muitos (coleção sem limite superior no modelo). |
+| **N:M** | Muitos para muitos, por **tabela associativa** com duas FKs. |
+
+Não há relações **1:1** obrigatórias entre duas entidades principais; predomina **N:1** e **N:M** via junções.
+
+### Relações N:1 (muitos → um)
+
+| De (N) | Para (1) | Cardinalidade | Coluna FK | Nullable |
+|--------|----------|----------------|-----------|----------|
+| `processes` | `users` | **N:1** | `owner_user_id` | sim |
+| `processes` | `process_types` | **N:1** | `type_id` | sim |
+| `processes` | `statuses` | **N:1** | `status_id` | sim |
+| `required_documents` | `process_types` | **N:1** | `type_id` | não |
+| `required_documents` | `documents` | **N:1** | `document_id` | não |
+| `process_documents` | `processes` | **N:1** | `process_id` | não |
+| `process_documents` | `documents` | **N:1** | `document_id` | não |
+| `legal_deadlines` | `process_types` | **N:1** | `type_id` | sim (`NULL` = prazo geral) |
+| `process_deadlines` | `processes` | **N:1** | `process_id` | não |
+| `process_deadlines` | `legal_deadlines` | **N:1** | `legal_deadline_id` | não |
+| `document_attachments` | `processes` | **N:1** | `process_id` | não |
+| `document_attachments` | `documents` | **N:1** | `document_id` | sim |
+| `document_attachments` | `process_documents` | **N:1** | `process_document_id` | sim |
+| `document_attachments` | `users` | **N:1** | `uploaded_by` | sim |
+| `linked_sheets` | `users` | **N:1** | `owner_user_id` | sim |
+| `sheet_sync_history` | `linked_sheets` | **N:1** | `linked_sheet_id` | não |
+| `process_change_history` | `processes` | **N:1** | `process_id` | não |
+| `process_change_history` | `users` | **N:1** | `changed_by_user_id` | sim |
+
+### Relações N:M (tabelas associativas)
+
+| Entidade A | Entidade B | Tabela | Observação |
+|------------|------------|--------|------------|
+| `process_types` | `documents` | `required_documents` | Documentos exigidos por tipo (`required`, `doc_order`). |
+| `processes` | `documents` | `process_documents` | Checklist por processo (`provided`, datas, etc.). |
+
+### Sentido inverso (1 → N)
+
+| Um registo em… | Para… | Cardinalidade |
+|----------------|-------|----------------|
+| `users` | `processes` (dono) | **1:N** |
+| `users` | `linked_sheets` | **1:N** (FK em `linked_sheets`; sem `relationship` em `User`) |
+| `users` | `document_attachments` (quem enviou) | **1:N** |
+| `users` | `process_change_history` (autor) | **1:N** |
+| `process_types` | `processes`, `required_documents`, `legal_deadlines` | **1:N** |
+| `statuses` | `processes` | **1:N** |
+| `documents` | `required_documents`, `process_documents`, `document_attachments` | **1:N** |
+| `processes` | `process_documents`, `process_deadlines`, `document_attachments`, `process_change_history` | **1:N** |
+| `legal_deadlines` | `process_deadlines` | **1:N** |
+| `linked_sheets` | `sheet_sync_history` | **1:N** |
+
+### Diagrama ER (Mermaid)
+
+```mermaid
+erDiagram
+  users ||--o{ processes : "owner_user_id N:1"
+  process_types ||--o{ processes : "type_id N:1"
+  statuses ||--o{ processes : "status_id N:1"
+
+  process_types ||--o{ required_documents : ""
+  documents ||--o{ required_documents : ""
+
+  processes ||--o{ process_documents : ""
+  documents ||--o{ process_documents : ""
+
+  process_types ||--o{ legal_deadlines : "type_id opcional"
+
+  processes ||--o{ process_deadlines : ""
+  legal_deadlines ||--o{ process_deadlines : ""
+
+  processes ||--o{ document_attachments : ""
+  documents ||--o{ document_attachments : "opcional"
+  process_documents ||--o{ document_attachments : "opcional"
+  users ||--o{ document_attachments : "uploaded_by opcional"
+
+  users ||--o{ linked_sheets : "owner_user_id opcional"
+  linked_sheets ||--o{ sheet_sync_history : ""
+
+  processes ||--o{ process_change_history : ""
+  users ||--o{ process_change_history : "changed_by opcional"
+```
+
+- `||--o{` indica um pai e zero ou muitos filhos; FKs nullable implicam **0..1** no lado referenciado quando não preenchidas.
+
+### Restrições úteis
+
+- `linked_sheets.file_id` é **único** (um registo por ficheiro Google ligado).
+- `users.username` e `users.email` são **únicos**.
+
+Diagramas de arquitetura (fluxogramas, pyreverse): `docs/diagrams/FLOWCHARTS.md`.
+
 ## Atualização de versão
 
 Na VPS:
